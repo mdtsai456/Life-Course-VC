@@ -125,12 +125,19 @@ export default function VoiceCloner() {
     const mimeType = getSupportedMimeType()
     let recorder
     try {
-      recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      try {
+        recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined)
+      } catch {
+        recorder = new MediaRecorder(stream)
+      }
     } catch {
-      recorder = new MediaRecorder(stream)
+      stopMicTracks()
+      setError('您的瀏覽器無法建立音頻錄製器。請嘗試使用其他瀏覽器。')
+      return
     }
 
     recorder.ondataavailable = (e) => {
+      if (mediaRecorderRef.current !== recorder) return
       if (e.data && e.data.size > 0) {
         chunksRef.current.push(e.data)
       }
@@ -143,6 +150,7 @@ export default function VoiceCloner() {
           chunksRef.current = []
           return
         }
+        if (mediaRecorderRef.current !== recorder) return
         const blob = new Blob(chunksRef.current, { type: recorder.mimeType })
         chunksRef.current = []
         setAudioBlob(blob)
