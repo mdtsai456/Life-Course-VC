@@ -16,7 +16,7 @@ The kinshasa project needs Voice Cloning functionality identical to what exists 
 - R3. Audio validation (≤10 MB, webm/mp4/ogg, magic bytes check)
 - R4. Language auto-detection (Chinese/English) based on Unicode CJK ranges
 - R5. WAV output at 24 kHz
-- R6. Concurrency control via asyncio.Lock for GPU safety
+- R6. Concurrency control via asyncio.Lock + Semaphore for GPU safety
 - R7. Health check endpoint (`GET /health`)
 - R8. CORS middleware configuration
 
@@ -56,8 +56,8 @@ The kinshasa project needs Voice Cloning functionality identical to what exists 
 ## Outstanding Questions
 
 ### Deferred to Planning
-- [Affects R1-R8][Technical] Exact file structure for the FastAPI backend (single file vs modular)
-- [Affects R9-R13][Technical] Whether to simplify the frontend since it only has one feature (no tab navigation needed)
+- (Affects R1-R8, Technical) Exact file structure for the FastAPI backend (single file vs modular)
+- (Affects R9-R13, Technical) Whether to simplify the frontend since it only has one feature (no tab navigation needed)
 
 ## Next Steps
 → `/ce:plan` for structured implementation planning

@@ -45,7 +45,7 @@ The kinshasa project needs Voice Cloning as a standalone app rather than part of
 
 ### Source Project
 
-Source: `/Users/b40160/Downloads/Life-Course/Life-Course-Remove-Background-main`
+Source: `Life-Course-Remove-Background-main`
 
 ### Relevant Code and Patterns
 
@@ -286,4 +286,4 @@ Source: `/Users/b40160/Downloads/Life-Course/Life-Course-Remove-Background-main`
 ## Sources & References
 
 - **Origin document:** [docs/brainstorms/2026-03-30-voice-clone-migration-requirements.md](docs/brainstorms/2026-03-30-voice-clone-migration-requirements.md)
-- **Source project:** `/Users/b40160/Downloads/Life-Course/Life-Course-Remove-Background-main`
+- **Source project:** `Life-Course-Remove-Background-main`
