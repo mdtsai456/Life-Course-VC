@@ -100,9 +100,6 @@ export default function VoiceCloner() {
     }
 
     setError('')
-    setResultUrl(null)
-    setAudioBlob(null)
-    chunksRef.current = []
     setIsAcquiringMic(true)
 
     let stream
@@ -119,6 +116,7 @@ export default function VoiceCloner() {
       return
     }
 
+    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop())
     streamRef.current = stream
     setIsAcquiringMic(false)
 
@@ -131,7 +129,7 @@ export default function VoiceCloner() {
         recorder = new MediaRecorder(stream)
       }
     } catch {
-      stopMicTracks()
+      stream.getTracks().forEach(t => t.stop())
       setError('您的瀏覽器無法建立音頻錄製器。請嘗試使用其他瀏覽器。')
       return
     }
@@ -155,7 +153,7 @@ export default function VoiceCloner() {
         chunksRef.current = []
         setAudioBlob(blob)
         setRecordingMimeType(recorder.mimeType)
-        stopMicTracks()
+        stream.getTracks().forEach(t => t.stop())
       })
     }
 
@@ -169,6 +167,9 @@ export default function VoiceCloner() {
     mediaRecorderRef.current = recorder
     recorder.start()
 
+    setResultUrl(null)
+    setAudioBlob(null)
+    chunksRef.current = []
     setIsRecording(true)
     setRecordingSeconds(0)
     timerRef.current = setInterval(() => {

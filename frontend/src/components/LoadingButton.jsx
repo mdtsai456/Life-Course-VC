@@ -8,7 +8,7 @@ export default function LoadingButton({
   ...rest
 }) {
   return (
-    <button type={type} disabled={disabled || loading} aria-busy={loading} {...rest}>
+    <button {...rest} type={type} disabled={disabled || loading} aria-busy={loading}>
       {loading ? (
         <span className="spinner-wrapper">
           <span className="spinner" style={spinnerStyle} />
