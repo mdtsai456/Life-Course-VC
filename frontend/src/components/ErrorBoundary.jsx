@@ -12,6 +12,9 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('Uncaught error:', error, info)
+    if (typeof this.props.onError === 'function') {
+      this.props.onError(error, info)
+    }
   }
 
   render() {
