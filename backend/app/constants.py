@@ -13,6 +13,7 @@ FTYP_MAGIC = b"ftyp"              # MP4 / ISO BMFF (at offset 4)
 
 # Voice route constants
 MAX_PCM_SIZE = 50 * 1024 * 1024  # 50 MB decompressed PCM limit
+CONSERVATIVE_EXPANSION_FACTOR = 20
 MAX_XTTS_PENDING = 4  # 1 running + 3 queued; beyond this → 503
 MIME_TO_FORMAT: dict[str, str] = {
     "audio/webm": "webm",

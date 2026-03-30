@@ -14,6 +14,7 @@ from pydub import AudioSegment
 from pydub.exceptions import CouldntDecodeError
 
 from app.constants import (
+    CONSERVATIVE_EXPANSION_FACTOR,
     EBML_MAGIC,
     FTYP_MAGIC,
     MAX_PCM_SIZE,
@@ -123,6 +124,10 @@ def _convert_to_wav(contents: bytes, fmt: str) -> tuple[bytes, float]:
     estimated = _estimate_pcm_size(contents, fmt)
     if estimated is not None and estimated > MAX_PCM_SIZE:
         raise AudioConversionError("音訊解壓後超過大小限制。")
+    if estimated is None:
+        conservative = len(contents) * CONSERVATIVE_EXPANSION_FACTOR
+        if conservative > MAX_PCM_SIZE:
+            raise AudioConversionError("音訊解壓後超過大小限制。")
 
     try:
         audio = AudioSegment.from_file(io.BytesIO(contents), format=fmt)
@@ -189,7 +194,9 @@ def _run_xtts(tts, wav_bytes: bytes, text: str, language: str) -> bytes:
                 file_path=synth_path,
             )
         except ValueError as exc:
-            raise ShortAudioError("audio too short") from exc
+            if "audio too short" in str(exc).lower():
+                raise ShortAudioError("audio too short") from exc
+            raise
         except Exception as exc:
             if CudaOOMError is not None and isinstance(exc, CudaOOMError):
                 raise OOMError("CUDA out of memory") from exc
@@ -267,9 +274,13 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
 
     language = _detect_language(stripped)
 
-    if request.app.state.xtts_semaphore.locked():
-        raise HTTPException(status_code=503, detail="語音克隆服務忙碌中，請稍後再試。")
-    await request.app.state.xtts_semaphore.acquire()
+    try:
+        async with request.app.state.xtts_admission_lock:
+            if request.app.state.xtts_semaphore.locked():
+                raise HTTPException(status_code=503, detail="語音克隆服務忙碌中，請稍後再試。")
+            await request.app.state.xtts_semaphore.acquire()
+    except HTTPException:
+        raise
     try:
         async with request.app.state.xtts_lock:
             result_bytes = await anyio.to_thread.run_sync(

@@ -30,10 +30,12 @@ async def lifespan(app: FastAPI):
     app.state.tts_model = tts
     app.state.xtts_lock = asyncio.Lock()
     app.state.xtts_semaphore = asyncio.Semaphore(MAX_XTTS_PENDING)
+    app.state.xtts_admission_lock = asyncio.Lock()
 
     yield
 
     # Teardown
+    del app.state.xtts_admission_lock
     del app.state.xtts_semaphore
     del app.state.xtts_lock
     del app.state.tts_model
@@ -58,13 +60,23 @@ app.add_middleware(
 )
 
 
+_DOCS_PATHS = frozenset({"/docs", "/redoc", "/openapi.json"})
+
+
 @app.middleware("http")
 async def add_security_headers(request: Request, call_next):
     response: Response = await call_next(request)
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
-    response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+    if _docs_enabled and request.url.path in _DOCS_PATHS:
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+            "img-src 'self' data: cdn.jsdelivr.net; frame-ancestors 'none'"
+        )
+    else:
+        response.headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
     return response
 
 app.include_router(voice_router)

@@ -302,11 +302,13 @@ class TestCloneVoiceEndpoint:
         audio = _make_audio(WEBM_HEADER, size=MAX_FILE_SIZE)
         client.app.state.tts_model.tts_to_file.side_effect = _make_synth_side_effect(WAV_STUB)
         voice_mocks.setup()
-        resp = client.post(
-            "/api/clone-voice",
-            files={"file": ("rec.webm", audio, "audio/webm")},
-            data={"text": "hello"},
-        )
+        # Override the estimate to avoid conservative fallback rejecting large files
+        with patch("app.routes.voice._estimate_pcm_size", return_value=1024):
+            resp = client.post(
+                "/api/clone-voice",
+                files={"file": ("rec.webm", audio, "audio/webm")},
+                data={"text": "hello"},
+            )
         assert resp.status_code == 200
 
     # -- magic bytes validation (415) --
