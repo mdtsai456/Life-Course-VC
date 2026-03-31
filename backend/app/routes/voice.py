@@ -243,23 +243,31 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
     if mime not in MIME_TO_FORMAT:
         logger.debug("MIME hint %r not in MIME_TO_FORMAT; will rely on magic bytes", mime)
 
+    job_id = str(uuid.uuid4())
+
     # Validate text
     stripped = (text or "").strip()
     if text is None or stripped == "":
-        raise HTTPException(status_code=400, detail="文字不得為空。")
+        raise _job_http_exc(400, "文字不得為空。", job_id)
     if len(stripped) > 500:
-        raise HTTPException(status_code=400, detail="文字不得超過 500 個字元。")
+        raise _job_http_exc(400, "文字不得超過 500 個字元。", job_id)
 
     # Validate file size + magic bytes
-    contents, detected = await read_and_validate_upload(
-        file,
-        detect_type=_detect_audio_type,
-        allowed_types=set(MIME_TO_FORMAT),
-        type_error_detail="檔案內容不是有效的音訊格式。",
-    )
+    try:
+        contents, detected = await read_and_validate_upload(
+            file,
+            detect_type=_detect_audio_type,
+            allowed_types=set(MIME_TO_FORMAT),
+            type_error_detail="檔案內容不是有效的音訊格式。",
+        )
+    except HTTPException as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=exc.detail,
+            headers={**(exc.headers or {}), "X-Job-Id": job_id},
+        ) from None
 
     fmt = MIME_TO_FORMAT[detected]
-    job_id = str(uuid.uuid4())
 
     # Convert to WAV
     try:
@@ -309,7 +317,7 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
         raise _job_http_exc(422, "音訊樣本太短，無法進行語音克隆。", job_id) from None
     except Exception:
         logger.exception("Unexpected XTTS error")
-        raise
+        raise _job_http_exc(500, "語音克隆服務發生未預期錯誤。", job_id) from None
     finally:
         request.app.state.xtts_semaphore.release()
 
