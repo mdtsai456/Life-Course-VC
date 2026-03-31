@@ -6,6 +6,8 @@ import logging
 import os
 import subprocess
 import tempfile
+import uuid
+from pathlib import Path
 from typing import Optional
 
 import anyio
@@ -21,6 +23,8 @@ from app.constants import (
     MIME_TO_FORMAT,
     OGGS_MAGIC,
 )
+from app.config import get_storage_root
+from app.storage_paths import ensure_job_dirs
 from app.validation import read_and_validate_upload
 
 try:
@@ -31,6 +35,10 @@ except (ImportError, AttributeError):
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _job_http_exc(status_code: int, detail: str, job_id: str) -> HTTPException:
+    return HTTPException(status_code=status_code, detail=detail, headers={"X-Job-Id": job_id})
 
 
 def _detect_audio_type(contents: bytes) -> str | None:
@@ -172,6 +180,13 @@ def _detect_language(text: str) -> str:
     return "en"
 
 
+def _persist_job_artifacts(storage_root: Path, job_id: str, fmt: str, contents: bytes, stripped: str, result_bytes: bytes) -> None:
+    input_dir, output_dir = ensure_job_dirs(storage_root, job_id)
+    (input_dir / f"original.{fmt}").write_bytes(contents)
+    (input_dir / "text.txt").write_text(stripped, encoding="utf-8")
+    (output_dir / "cloned.wav").write_bytes(result_bytes)
+
+
 def _run_xtts(tts, wav_bytes: bytes, text: str, language: str) -> bytes:
     """Run XTTS v2 inference synchronously.
 
@@ -228,23 +243,33 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
     if mime not in MIME_TO_FORMAT:
         logger.debug("MIME hint %r not in MIME_TO_FORMAT; will rely on magic bytes", mime)
 
+    job_id = str(uuid.uuid4())
+
     # Validate text
     stripped = (text or "").strip()
     if text is None or stripped == "":
-        raise HTTPException(status_code=400, detail="文字不得為空。")
+        raise _job_http_exc(400, "文字不得為空。", job_id)
     if len(stripped) > 500:
-        raise HTTPException(status_code=400, detail="文字不得超過 500 個字元。")
+        raise _job_http_exc(400, "文字不得超過 500 個字元。", job_id)
 
     # Validate file size + magic bytes
-    contents, detected = await read_and_validate_upload(
-        file,
-        detect_type=_detect_audio_type,
-        allowed_types=set(MIME_TO_FORMAT),
-        type_error_detail="檔案內容不是有效的音訊格式。",
-    )
+    try:
+        contents, detected = await read_and_validate_upload(
+            file,
+            detect_type=_detect_audio_type,
+            allowed_types=set(MIME_TO_FORMAT),
+            type_error_detail="檔案內容不是有效的音訊格式。",
+        )
+    except HTTPException as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=exc.detail,
+            headers={**(exc.headers or {}), "X-Job-Id": job_id},
+        ) from None
+
+    fmt = MIME_TO_FORMAT[detected]
 
     # Convert to WAV
-    fmt = MIME_TO_FORMAT[detected]
     try:
         wav_bytes, duration_secs = await anyio.to_thread.run_sync(
             lambda: _convert_to_wav(contents, fmt),
@@ -252,32 +277,26 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
         )
     except AudioConversionError as exc:
         logger.warning("Audio conversion failed: %s", exc)
-        raise HTTPException(
-            status_code=422,
-            detail=str(exc),
-        ) from None
+        raise _job_http_exc(422, str(exc), job_id) from None
     except FileNotFoundError:
         logger.error("FFmpeg binary not found")
-        raise HTTPException(
-            status_code=503,
-            detail="音訊轉換服務暫時無法使用。",
-        ) from None
+        raise _job_http_exc(503, "音訊轉換服務暫時無法使用。", job_id) from None
 
     # Duration validation
     if duration_secs < 3.0:
-        raise HTTPException(status_code=400, detail="音訊樣本太短，至少需要 3 秒。")
+        raise _job_http_exc(400, "音訊樣本太短，至少需要 3 秒。", job_id)
 
     # Model guard
     tts_model = getattr(request.app.state, "tts_model", None)
     if tts_model is None:
-        raise HTTPException(status_code=503, detail="語音克隆服務尚未就緒。")
+        raise _job_http_exc(503, "語音克隆服務尚未就緒。", job_id)
 
     language = _detect_language(stripped)
 
     try:
         async with request.app.state.xtts_admission_lock:
             if request.app.state.xtts_semaphore.locked():
-                raise HTTPException(status_code=503, detail="語音克隆服務忙碌中，請稍後再試。")
+                raise _job_http_exc(503, "語音克隆服務忙碌中，請稍後再試。", job_id)
             await request.app.state.xtts_semaphore.acquire()
     except HTTPException:
         raise
@@ -289,21 +308,34 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
             )
     except OOMError:
         logger.warning("XTTS inference failed: CUDA OOM")
-        raise HTTPException(status_code=503, detail="語音克隆服務資源不足，請稍後再試。") from None
+        raise _job_http_exc(503, "語音克隆服務資源不足，請稍後再試。", job_id) from None
     except NoOutputError:
         logger.warning("XTTS inference failed: no output file")
-        raise HTTPException(status_code=503, detail="語音合成未產生輸出檔案。") from None
+        raise _job_http_exc(503, "語音合成未產生輸出檔案。", job_id) from None
     except ShortAudioError:
         logger.warning("XTTS inference failed: audio too short")
-        raise HTTPException(status_code=422, detail="音訊樣本太短，無法進行語音克隆。") from None
+        raise _job_http_exc(422, "音訊樣本太短，無法進行語音克隆。", job_id) from None
     except Exception:
         logger.exception("Unexpected XTTS error")
-        raise
+        raise _job_http_exc(500, "語音克隆服務發生未預期錯誤。", job_id) from None
     finally:
         request.app.state.xtts_semaphore.release()
+
+    # Persist job artifacts — storage failure must not block the response.
+    try:
+        storage_root = get_storage_root()
+        await anyio.to_thread.run_sync(
+            lambda: _persist_job_artifacts(storage_root, job_id, fmt, contents, stripped, result_bytes),
+            abandon_on_cancel=False,
+        )
+    except Exception:
+        logger.exception("Failed to persist job artifacts for job_id=%s", job_id)
 
     return Response(
         content=result_bytes,
         media_type="audio/wav",
-        headers={"Content-Disposition": 'attachment; filename="cloned.wav"'},
+        headers={
+            "Content-Disposition": 'attachment; filename="cloned.wav"',
+            "X-Job-Id": job_id,
+        },
     )

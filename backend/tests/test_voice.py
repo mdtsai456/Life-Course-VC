@@ -495,6 +495,7 @@ class TestXttsEndpoint:
         )
         assert resp.status_code == 400
         assert resp.json()["detail"] == "音訊樣本太短，至少需要 3 秒。"
+        assert "x-job-id" in resp.headers
 
     def test_accept_audio_exactly_3s(self, client, voice_mocks):
         """Duration exactly 3.0s → should pass duration validation."""
@@ -547,6 +548,7 @@ class TestXttsEndpoint:
             client.app.state.tts_model = saved
         assert resp.status_code == 503
         assert resp.json()["detail"] == "語音克隆服務尚未就緒。"
+        assert "x-job-id" in resp.headers
 
     def test_successful_inference_returns_wav(self, client, voice_mocks):
         """Happy path: 200 with synthesised WAV content."""
@@ -590,6 +592,7 @@ class TestXttsEndpoint:
         )
         assert resp.status_code == 422
         assert resp.json()["detail"] == "音訊樣本太短，無法進行語音克隆。"
+        assert "x-job-id" in resp.headers
 
     def test_xtts_oom_returns_503(self, client, voice_mocks):
         """XTTS raises OutOfMemoryError → 503."""
@@ -608,6 +611,7 @@ class TestXttsEndpoint:
             )
         assert resp.status_code == 503
         assert resp.json()["detail"] == "語音克隆服務資源不足，請稍後再試。"
+        assert "x-job-id" in resp.headers
 
     def test_xtts_oom_when_torch_missing_raises(self, client, voice_mocks):
         """When CudaOOMError is None (no torch), OOM propagates as 500."""
@@ -658,3 +662,104 @@ class TestXttsEndpoint:
             assert resp.status_code == 500
         finally:
             client._transport.raise_server_exceptions = True
+
+
+# ===========================================================================
+# Job storage tests
+# ===========================================================================
+class TestJobStorage:
+    def test_success_creates_files_and_returns_job_id(self, client, voice_mocks, tmp_path):
+        """Successful request stores original audio, text, and cloned output."""
+        audio = _make_audio(WEBM_HEADER)
+        client.app.state.tts_model.tts_to_file.side_effect = _make_synth_side_effect(WAV_STUB)
+        voice_mocks.setup()
+        with patch("app.routes.voice.get_storage_root", return_value=tmp_path):
+            resp = client.post(
+                "/api/clone-voice",
+                files={"file": ("rec.webm", audio, "audio/webm")},
+                data={"text": "hello"},
+            )
+        assert resp.status_code == 200
+        job_id = resp.headers["x-job-id"]
+        assert len(job_id) == 36  # UUID format
+
+        input_dir = tmp_path / "input" / job_id
+        output_dir = tmp_path / "output" / job_id
+        assert (input_dir / "original.webm").read_bytes() == audio
+        assert (input_dir / "text.txt").read_text(encoding="utf-8") == "hello"
+        assert (output_dir / "cloned.wav").read_bytes() == WAV_STUB
+
+    def test_stores_original_bytes_not_wav(self, client, voice_mocks, tmp_path):
+        """Input file should be the raw upload, not the WAV-converted version."""
+        audio = _make_audio(OGG_HEADER)
+        client.app.state.tts_model.tts_to_file.side_effect = _make_synth_side_effect(WAV_STUB)
+        voice_mocks.setup()
+        with patch("app.routes.voice.get_storage_root", return_value=tmp_path):
+            resp = client.post(
+                "/api/clone-voice",
+                files={"file": ("rec.ogg", audio, "audio/ogg")},
+                data={"text": "hello"},
+            )
+        assert resp.status_code == 200
+        job_id = resp.headers["x-job-id"]
+        stored = (tmp_path / "input" / job_id / "original.ogg").read_bytes()
+        assert stored == audio
+
+    def test_storage_failure_still_returns_audio(self, client, voice_mocks, tmp_path):
+        """Storage write error is logged but response still succeeds."""
+        audio = _make_audio(WEBM_HEADER)
+        client.app.state.tts_model.tts_to_file.side_effect = _make_synth_side_effect(WAV_STUB)
+        voice_mocks.setup()
+        with patch("app.routes.voice.get_storage_root", side_effect=OSError("disk full")):
+            resp = client.post(
+                "/api/clone-voice",
+                files={"file": ("rec.webm", audio, "audio/webm")},
+                data={"text": "hello"},
+            )
+        assert resp.status_code == 200
+        assert resp.content == WAV_STUB
+        assert "x-job-id" in resp.headers
+
+    def test_no_files_on_validation_failure(self, client, tmp_path):
+        """Validation failure (bad magic bytes) should not create storage dirs."""
+        fake = b"\x00" * 1024
+        with patch("app.routes.voice.get_storage_root", return_value=tmp_path):
+            resp = client.post(
+                "/api/clone-voice",
+                files={"file": ("rec.webm", fake, "audio/webm")},
+                data={"text": "hello"},
+            )
+        assert resp.status_code == 415
+        assert not (tmp_path / "input").exists()
+        assert not (tmp_path / "output").exists()
+
+    def test_no_files_on_inference_failure(self, client, voice_mocks, tmp_path):
+        """Inference failure should not create storage dirs."""
+        audio = _make_audio(WEBM_HEADER)
+        client.app.state.tts_model.tts_to_file.return_value = None  # no output
+        voice_mocks.setup()
+        with patch("app.routes.voice.get_storage_root", return_value=tmp_path):
+            resp = client.post(
+                "/api/clone-voice",
+                files={"file": ("rec.webm", audio, "audio/webm")},
+                data={"text": "hello"},
+            )
+        assert resp.status_code == 503
+        assert not (tmp_path / "input").exists()
+        assert not (tmp_path / "output").exists()
+
+    def test_text_stored_correctly(self, client, voice_mocks, tmp_path):
+        """Text parameter with unicode should be stored correctly."""
+        audio = _make_audio(WEBM_HEADER)
+        client.app.state.tts_model.tts_to_file.side_effect = _make_synth_side_effect(WAV_STUB)
+        voice_mocks.setup()
+        with patch("app.routes.voice.get_storage_root", return_value=tmp_path):
+            resp = client.post(
+                "/api/clone-voice",
+                files={"file": ("rec.webm", audio, "audio/webm")},
+                data={"text": "你好世界"},
+            )
+        assert resp.status_code == 200
+        job_id = resp.headers["x-job-id"]
+        stored_text = (tmp_path / "input" / job_id / "text.txt").read_text(encoding="utf-8")
+        assert stored_text == "你好世界"
