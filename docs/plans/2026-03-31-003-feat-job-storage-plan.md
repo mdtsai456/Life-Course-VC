@@ -37,9 +37,9 @@ Currently, the voice cloning endpoint processes audio entirely in memory and tem
 
 ### Relevant Code and Patterns
 
-- **REMBG reference:** `/Users/b40160/conductor/workspaces/Life-Course-REMBG/louisville/backend/app/storage_paths.py` — `job_input_dir()`, `job_output_dir()`, `ensure_job_dirs()`
-- **REMBG config:** `/Users/b40160/conductor/workspaces/Life-Course-REMBG/louisville/backend/app/config.py` — `get_storage_root()` reads `STORAGE_ROOT` env var, defaults to `./storage`, returns resolved `Path`
-- **REMBG route integration:** `images.py` generates UUID after validation, persists input/output after processing, adds `X-Job-Id` header, raises HTTP 500 on storage failure
+- **REMBG reference:** `storage_paths.py` — `job_input_dir()`, `job_output_dir()`, `ensure_job_dirs()`
+- **REMBG config:** `config.py` — `get_storage_root()` reads `STORAGE_ROOT` env var, defaults to `./storage`, returns resolved `Path`
+- **REMBG route integration:** `images.py` route — generates UUID after validation, persists input/output after processing, adds `X-Job-Id` header, raises HTTP 500 on storage failure
 - **VC config pattern:** `backend/app/config.py` uses standalone `get_<setting>()` functions reading `os.getenv()`
 - **VC test pattern:** `backend/tests/` uses `conftest.py` fixtures, class-based test organization, `sys.modules` patching for torch/TTS
 
@@ -172,6 +172,6 @@ Currently, the voice cloning endpoint processes audio entirely in memory and tem
 
 ## Sources & References
 
-- REMBG reference: `/Users/b40160/conductor/workspaces/Life-Course-REMBG/louisville/backend/app/storage_paths.py`
-- REMBG config: `/Users/b40160/conductor/workspaces/Life-Course-REMBG/louisville/backend/app/config.py`
-- REMBG route: `/Users/b40160/conductor/workspaces/Life-Course-REMBG/louisville/backend/app/routes/images.py`
+- REMBG reference: sister project `storage_paths.py` — `job_input_dir()`, `job_output_dir()`, `ensure_job_dirs()`
+- REMBG config: sister project `config.py` — `get_storage_root()`
+- REMBG route: sister project `routes/images.py` — job storage integration pattern

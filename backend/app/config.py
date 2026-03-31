@@ -22,7 +22,8 @@ def is_docs_enabled() -> bool:
     return os.getenv("DOCS_ENABLED", default).strip().lower() in ("true", "1", "yes")
 
 
-# For local default "./storage", run uvicorn from backend/ directory.
+_BASE_DIR = Path(__file__).resolve().parent.parent  # backend/
+
+
 def get_storage_root() -> Path:
-    raw = os.getenv("STORAGE_ROOT", "./storage")
-    return Path(raw).resolve()
+    return Path(os.getenv("STORAGE_ROOT", str(_BASE_DIR / "storage"))).resolve()
