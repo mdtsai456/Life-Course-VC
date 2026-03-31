@@ -6,6 +6,7 @@ import logging
 import os
 import subprocess
 import tempfile
+import uuid
 from typing import Optional
 
 import anyio
@@ -21,6 +22,8 @@ from app.constants import (
     MIME_TO_FORMAT,
     OGGS_MAGIC,
 )
+from app.config import get_storage_root
+from app.storage_paths import ensure_job_dirs
 from app.validation import read_and_validate_upload
 
 try:
@@ -243,8 +246,10 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
         type_error_detail="檔案內容不是有效的音訊格式。",
     )
 
-    # Convert to WAV
     fmt = MIME_TO_FORMAT[detected]
+    job_id = str(uuid.uuid4())
+
+    # Convert to WAV
     try:
         wav_bytes, duration_secs = await anyio.to_thread.run_sync(
             lambda: _convert_to_wav(contents, fmt),
@@ -302,8 +307,21 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
     finally:
         request.app.state.xtts_semaphore.release()
 
+    # Persist job artifacts — storage failure must not block the response.
+    try:
+        storage_root = get_storage_root()
+        input_dir, output_dir = ensure_job_dirs(storage_root, job_id)
+        (input_dir / f"original.{fmt}").write_bytes(contents)
+        (input_dir / "text.txt").write_text(stripped, encoding="utf-8")
+        (output_dir / "cloned.wav").write_bytes(result_bytes)
+    except Exception:
+        logger.exception("Failed to persist job artifacts for job_id=%s", job_id)
+
     return Response(
         content=result_bytes,
         media_type="audio/wav",
-        headers={"Content-Disposition": 'attachment; filename="cloned.wav"'},
+        headers={
+            "Content-Disposition": 'attachment; filename="cloned.wav"',
+            "X-Job-Id": job_id,
+        },
     )
