@@ -120,6 +120,12 @@ body {
   font: inherit;
 }
 
+.link-button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  text-decoration: none;
+}
+
 .error-boundary {
   padding: 2rem;
 }
@@ -192,6 +198,47 @@ body {
   font-size: 0.875rem;
   color: #16a34a;
   font-weight: 500;
+}
+
+.recording-too-short {
+  font-size: 0.875rem;
+  color: #b91c1c;
+  font-weight: 500;
+}
+
+.recording-preview {
+  width: 100%;
+  border-radius: 8px;
+}
+
+.example-texts {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.85rem;
+  color: #666;
+}
+
+.example-texts-label {
+  color: #888;
+}
+
+.text-input-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+.char-count {
+  align-self: flex-end;
+  font-size: 0.75rem;
+  color: #888;
+  margin-top: 0.25rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.char-count.over-limit {
+  color: #b91c1c;
+  font-weight: 600;
 }
 
 .prompt-input {

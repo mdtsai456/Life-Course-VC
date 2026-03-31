@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cloneVoice } from '../services/api'
 import { revokeResultUrl } from '../utils/revokeResultUrl'
 import useAsyncSubmit from '../hooks/useAsyncSubmit'
-import { useManagedObjectUrl } from '../hooks/useObjectUrl'
+import { useDerivedObjectUrl, useManagedObjectUrl } from '../hooks/useObjectUrl'
 import LoadingButton from './LoadingButton'
 import ProgressStatus from './ProgressStatus'
 
@@ -48,6 +48,11 @@ function mapGetUserMediaError(err) {
 
 const CLONE_PROGRESS_LABELS = { uploading: '上傳錄音中...', processing: '克隆聲音中...' }
 
+const EXAMPLE_TEXTS = [
+  { label: '日常', text: '嗨，你好嗎？今天天氣真不錯，一起出去走走吧！' },
+  { label: '正式', text: '各位觀眾大家好，歡迎收聽今天的節目，我是你們的主持人。' },
+]
+
 // --- Component ---
 
 export default function VoiceCloner() {
@@ -61,6 +66,7 @@ export default function VoiceCloner() {
   const [recordingMimeType, setRecordingMimeType] = useState('')
 
   const { execute, loading, error, setError, phase, reset } = useAsyncSubmit()
+  const previewUrl = useDerivedObjectUrl(audioBlob)
 
   // External resource refs (no re-render on change)
   const mediaRecorderRef = useRef(null)
@@ -205,7 +211,9 @@ export default function VoiceCloner() {
     )
   }
 
-  const isDisabled = !audioBlob || !text.trim() || loading || isRecording || isAcquiringMic
+  const tooShort = audioBlob && recordingSeconds < 3
+  const tooLong = text.length > 500
+  const isDisabled = !audioBlob || !text.trim() || loading || isRecording || isAcquiringMic || tooShort || tooLong
 
   return (
     <div className="voice-cloner">
@@ -246,22 +254,66 @@ export default function VoiceCloner() {
           )}
 
           {audioBlob && !isRecording && (
-            <span className="recorded-status">
-              ✓ 已錄製 {formatTime(recordingSeconds)}
-            </span>
+            <>
+              <span className="recorded-status">
+                ✓ 已錄製 {formatTime(recordingSeconds)}
+              </span>
+              {tooShort && (
+                <span className="recording-too-short" role="alert">
+                  錄音至少需要 3 秒
+                </span>
+              )}
+              {previewUrl && (
+                <audio
+                  key={previewUrl}
+                  controls
+                  src={previewUrl}
+                  className="recording-preview"
+                />
+              )}
+              <button
+                type="button"
+                className="link-button"
+                onClick={handleStartRecording}
+                disabled={isAcquiringMic || loading}
+              >
+                重新錄音
+              </button>
+            </>
           )}
         </div>
 
+        {/* Example text suggestions */}
+        <div className="example-texts">
+          <span className="example-texts-label">範例：</span>
+          {EXAMPLE_TEXTS.map(({ label, text: exampleText }) => (
+            <button
+              key={label}
+              type="button"
+              className="link-button"
+              disabled={isRecording || loading}
+              onClick={() => setText(exampleText)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         {/* Text input */}
-        <textarea
-          aria-label="Text to read aloud"
-          className="prompt-input"
-          value={text}
-          onChange={e => setText(e.target.value)}
-          placeholder="輸入希望以您的聲音朗讀的文字…"
-          rows={4}
-          disabled={isRecording || loading}
-        />
+        <div className="text-input-wrapper">
+          <textarea
+            aria-label="Text to read aloud"
+            className="prompt-input"
+            value={text}
+            onChange={e => setText(e.target.value)}
+            placeholder="輸入希望以您的聲音朗讀的文字…"
+            rows={4}
+            disabled={isRecording || loading}
+          />
+          <span className={`char-count${text.length > 500 ? ' over-limit' : ''}`}>
+            {text.length}/500
+          </span>
+        </div>
 
         {/* Submit */}
         <LoadingButton
