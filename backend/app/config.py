@@ -1,5 +1,6 @@
 import logging
 import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -19,3 +20,9 @@ def get_cors_allowed_origins() -> list[str]:
 def is_docs_enabled() -> bool:
     default = "false" if _is_production() else "true"
     return os.getenv("DOCS_ENABLED", default).strip().lower() in ("true", "1", "yes")
+
+
+# For local default "./storage", run uvicorn from backend/ directory.
+def get_storage_root() -> Path:
+    raw = os.getenv("STORAGE_ROOT", "./storage")
+    return Path(raw).resolve()

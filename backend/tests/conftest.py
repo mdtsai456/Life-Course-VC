@@ -17,6 +17,7 @@ from fastapi.testclient import TestClient
 _APP_MODULES = [
     "app.main",
     "app.config",
+    "app.storage_paths",
     "app.routes.voice",
 ]
 
