@@ -213,6 +213,7 @@ body {
 
 .example-texts {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.75rem;
   font-size: 0.85rem;
