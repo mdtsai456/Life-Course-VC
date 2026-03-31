@@ -179,7 +179,7 @@ def _detect_language(text: str) -> str:
     return "en"
 
 
-def _persist_job_artifacts(storage_root, job_id, fmt, contents, stripped, result_bytes):
+def _persist_job_artifacts(storage_root: Path, job_id: str, fmt: str, contents: bytes, stripped: str, result_bytes: bytes) -> None:
     input_dir, output_dir = ensure_job_dirs(storage_root, job_id)
     (input_dir / f"original.{fmt}").write_bytes(contents)
     (input_dir / "text.txt").write_text(stripped, encoding="utf-8")
