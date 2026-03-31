@@ -495,6 +495,7 @@ class TestXttsEndpoint:
         )
         assert resp.status_code == 400
         assert resp.json()["detail"] == "音訊樣本太短，至少需要 3 秒。"
+        assert "x-job-id" in resp.headers
 
     def test_accept_audio_exactly_3s(self, client, voice_mocks):
         """Duration exactly 3.0s → should pass duration validation."""
@@ -547,6 +548,7 @@ class TestXttsEndpoint:
             client.app.state.tts_model = saved
         assert resp.status_code == 503
         assert resp.json()["detail"] == "語音克隆服務尚未就緒。"
+        assert "x-job-id" in resp.headers
 
     def test_successful_inference_returns_wav(self, client, voice_mocks):
         """Happy path: 200 with synthesised WAV content."""
@@ -590,6 +592,7 @@ class TestXttsEndpoint:
         )
         assert resp.status_code == 422
         assert resp.json()["detail"] == "音訊樣本太短，無法進行語音克隆。"
+        assert "x-job-id" in resp.headers
 
     def test_xtts_oom_returns_503(self, client, voice_mocks):
         """XTTS raises OutOfMemoryError → 503."""
@@ -608,6 +611,7 @@ class TestXttsEndpoint:
             )
         assert resp.status_code == 503
         assert resp.json()["detail"] == "語音克隆服務資源不足，請稍後再試。"
+        assert "x-job-id" in resp.headers
 
     def test_xtts_oom_when_torch_missing_raises(self, client, voice_mocks):
         """When CudaOOMError is None (no torch), OOM propagates as 500."""

@@ -36,6 +36,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
+def _job_http_exc(status_code: int, detail: str, job_id: str) -> HTTPException:
+    return HTTPException(status_code=status_code, detail=detail, headers={"X-Job-Id": job_id})
+
+
 def _detect_audio_type(contents: bytes) -> str | None:
     """Detect audio format from magic bytes. Returns base MIME type or None."""
     if len(contents) < 8:
@@ -175,6 +179,13 @@ def _detect_language(text: str) -> str:
     return "en"
 
 
+def _persist_job_artifacts(storage_root, job_id, fmt, contents, stripped, result_bytes):
+    input_dir, output_dir = ensure_job_dirs(storage_root, job_id)
+    (input_dir / f"original.{fmt}").write_bytes(contents)
+    (input_dir / "text.txt").write_text(stripped, encoding="utf-8")
+    (output_dir / "cloned.wav").write_bytes(result_bytes)
+
+
 def _run_xtts(tts, wav_bytes: bytes, text: str, language: str) -> bytes:
     """Run XTTS v2 inference synchronously.
 
@@ -257,32 +268,26 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
         )
     except AudioConversionError as exc:
         logger.warning("Audio conversion failed: %s", exc)
-        raise HTTPException(
-            status_code=422,
-            detail=str(exc),
-        ) from None
+        raise _job_http_exc(422, str(exc), job_id) from None
     except FileNotFoundError:
         logger.error("FFmpeg binary not found")
-        raise HTTPException(
-            status_code=503,
-            detail="音訊轉換服務暫時無法使用。",
-        ) from None
+        raise _job_http_exc(503, "音訊轉換服務暫時無法使用。", job_id) from None
 
     # Duration validation
     if duration_secs < 3.0:
-        raise HTTPException(status_code=400, detail="音訊樣本太短，至少需要 3 秒。")
+        raise _job_http_exc(400, "音訊樣本太短，至少需要 3 秒。", job_id)
 
     # Model guard
     tts_model = getattr(request.app.state, "tts_model", None)
     if tts_model is None:
-        raise HTTPException(status_code=503, detail="語音克隆服務尚未就緒。")
+        raise _job_http_exc(503, "語音克隆服務尚未就緒。", job_id)
 
     language = _detect_language(stripped)
 
     try:
         async with request.app.state.xtts_admission_lock:
             if request.app.state.xtts_semaphore.locked():
-                raise HTTPException(status_code=503, detail="語音克隆服務忙碌中，請稍後再試。")
+                raise _job_http_exc(503, "語音克隆服務忙碌中，請稍後再試。", job_id)
             await request.app.state.xtts_semaphore.acquire()
     except HTTPException:
         raise
@@ -294,13 +299,13 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
             )
     except OOMError:
         logger.warning("XTTS inference failed: CUDA OOM")
-        raise HTTPException(status_code=503, detail="語音克隆服務資源不足，請稍後再試。") from None
+        raise _job_http_exc(503, "語音克隆服務資源不足，請稍後再試。", job_id) from None
     except NoOutputError:
         logger.warning("XTTS inference failed: no output file")
-        raise HTTPException(status_code=503, detail="語音合成未產生輸出檔案。") from None
+        raise _job_http_exc(503, "語音合成未產生輸出檔案。", job_id) from None
     except ShortAudioError:
         logger.warning("XTTS inference failed: audio too short")
-        raise HTTPException(status_code=422, detail="音訊樣本太短，無法進行語音克隆。") from None
+        raise _job_http_exc(422, "音訊樣本太短，無法進行語音克隆。", job_id) from None
     except Exception:
         logger.exception("Unexpected XTTS error")
         raise
@@ -310,10 +315,10 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
     # Persist job artifacts — storage failure must not block the response.
     try:
         storage_root = get_storage_root()
-        input_dir, output_dir = ensure_job_dirs(storage_root, job_id)
-        (input_dir / f"original.{fmt}").write_bytes(contents)
-        (input_dir / "text.txt").write_text(stripped, encoding="utf-8")
-        (output_dir / "cloned.wav").write_bytes(result_bytes)
+        await anyio.to_thread.run_sync(
+            lambda: _persist_job_artifacts(storage_root, job_id, fmt, contents, stripped, result_bytes),
+            abandon_on_cancel=False,
+        )
     except Exception:
         logger.exception("Failed to persist job artifacts for job_id=%s", job_id)
 
