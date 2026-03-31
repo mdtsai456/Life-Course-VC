@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cloneVoice } from '../services/api'
 import { revokeResultUrl } from '../utils/revokeResultUrl'
 import useAsyncSubmit from '../hooks/useAsyncSubmit'
+import useHealthCheck from '../hooks/useHealthCheck'
 import { useDerivedObjectUrl, useManagedObjectUrl } from '../hooks/useObjectUrl'
 import LoadingButton from './LoadingButton'
 import ProgressStatus from './ProgressStatus'
@@ -75,6 +76,7 @@ export default function VoiceCloner() {
   const [recordingMimeType, setRecordingMimeType] = useState('')
 
   const { execute, loading, error, setError, phase, reset } = useAsyncSubmit()
+  const serviceReady = useHealthCheck()
   const previewUrl = useDerivedObjectUrl(audioBlob)
 
   // External resource refs (no re-render on change)
@@ -224,7 +226,7 @@ export default function VoiceCloner() {
 
   const tooShort = audioBlob && recordingSeconds < 3
   const tooLong = text.length > 500
-  const isDisabled = !audioBlob || !text.trim() || loading || isRecording || isAcquiringMic || tooShort || tooLong
+  const isDisabled = !serviceReady || !audioBlob || !text.trim() || loading || isRecording || isAcquiringMic || tooShort || tooLong
 
   return (
     <div className="voice-cloner">
@@ -341,7 +343,7 @@ export default function VoiceCloner() {
           loading={loading}
           loadingText="處理中…"
         >
-          送出
+          {!serviceReady ? '服務準備中…' : '送出'}
         </LoadingButton>
         <ProgressStatus phase={phase} labels={CLONE_PROGRESS_LABELS} />
       </form>
