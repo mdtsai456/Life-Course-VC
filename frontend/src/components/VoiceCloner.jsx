@@ -250,9 +250,16 @@ export default function VoiceCloner() {
           )}
 
           {isRecording && (
-            <span className="recording-timer" aria-live="polite">
-              {formatTime(recordingSeconds)}
-            </span>
+            <>
+              <span className="recording-timer" aria-live="polite">
+                {formatTime(recordingSeconds)}
+              </span>
+              {recordingSeconds < 3 && (
+                <span className="recording-too-short">
+                  至少再錄 {3 - recordingSeconds} 秒
+                </span>
+              )}
+            </>
           )}
 
           {audioBlob && !isRecording && (
