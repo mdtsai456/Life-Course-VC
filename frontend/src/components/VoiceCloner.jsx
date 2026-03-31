@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { cloneVoice } from '../services/api'
 import { revokeResultUrl } from '../utils/revokeResultUrl'
 import useAsyncSubmit from '../hooks/useAsyncSubmit'
+import useHealthCheck from '../hooks/useHealthCheck'
 import { useDerivedObjectUrl, useManagedObjectUrl } from '../hooks/useObjectUrl'
 import LoadingButton from './LoadingButton'
 import ProgressStatus from './ProgressStatus'
@@ -33,6 +34,12 @@ function formatTime(seconds) {
   return `${m}:${s}`
 }
 
+function cloneFilename() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `clone-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.wav`
+}
+
 function mapGetUserMediaError(err) {
   const name = err.name
   if (name === 'NotAllowedError' || name === 'PermissionDeniedError')
@@ -51,6 +58,8 @@ const CLONE_PROGRESS_LABELS = { uploading: '上傳錄音中...', processing: '�
 const EXAMPLE_TEXTS = [
   { label: '日常', text: '嗨，你好嗎？今天天氣真不錯，一起出去走走吧！' },
   { label: '正式', text: '各位觀眾大家好，歡迎收聽今天的節目，我是你們的主持人。' },
+  { label: '故事', text: '從前從前，在一座大山的腳下，住著一位善良的老爺爺。' },
+  { label: '新聞', text: '根據最新報導，本週氣溫將持續回暖，預計週末會迎來晴朗好天氣。' },
 ]
 
 // --- Component ---
@@ -63,9 +72,11 @@ export default function VoiceCloner() {
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [text, setText]                     = useState('')
   const [resultUrl, setResultUrl]           = useManagedObjectUrl()
+  const [resultFilename, setResultFilename] = useState(null)
   const [recordingMimeType, setRecordingMimeType] = useState('')
 
   const { execute, loading, error, setError, phase, reset } = useAsyncSubmit()
+  const serviceReady = useHealthCheck()
   const previewUrl = useDerivedObjectUrl(audioBlob)
 
   // External resource refs (no re-render on change)
@@ -174,6 +185,7 @@ export default function VoiceCloner() {
     recorder.start()
 
     setResultUrl(null)
+    setResultFilename(null)
     setAudioBlob(null)
     chunksRef.current = []
     setIsRecording(true)
@@ -198,6 +210,7 @@ export default function VoiceCloner() {
     if (!audioBlob || !text.trim()) return
 
     setResultUrl(null)
+    setResultFilename(null)
 
     const ext = recordingMimeType ? mimeTypeToExtension(recordingMimeType) : 'audio'
     const audioFile = new File([audioBlob], `recording.${ext}`, { type: audioBlob.type })
@@ -205,7 +218,7 @@ export default function VoiceCloner() {
     execute(
       (signal) => cloneVoice(audioFile, text.trim(), signal),
       {
-        onSuccess: ({ url }) => setResultUrl(url),
+        onSuccess: ({ url }) => { setResultUrl(url); setResultFilename(cloneFilename()) },
         onAbortCleanup: revokeResultUrl,
       },
     )
@@ -213,7 +226,7 @@ export default function VoiceCloner() {
 
   const tooShort = audioBlob && recordingSeconds < 3
   const tooLong = text.length > 500
-  const isDisabled = !audioBlob || !text.trim() || loading || isRecording || isAcquiringMic || tooShort || tooLong
+  const isDisabled = !serviceReady || !audioBlob || !text.trim() || loading || isRecording || isAcquiringMic || tooShort || tooLong
 
   return (
     <div className="voice-cloner">
@@ -248,9 +261,16 @@ export default function VoiceCloner() {
           )}
 
           {isRecording && (
-            <span className="recording-timer" aria-live="polite">
-              {formatTime(recordingSeconds)}
-            </span>
+            <>
+              <span className="recording-timer" aria-live="polite">
+                {formatTime(recordingSeconds)}
+              </span>
+              {recordingSeconds < 3 && (
+                <span className="recording-too-short">
+                  至少再錄 {3 - recordingSeconds} 秒
+                </span>
+              )}
+            </>
           )}
 
           {audioBlob && !isRecording && (
@@ -323,7 +343,7 @@ export default function VoiceCloner() {
           loading={loading}
           loadingText="處理中…"
         >
-          送出
+          {!serviceReady ? '服務準備中…' : '送出'}
         </LoadingButton>
         <ProgressStatus phase={phase} labels={CLONE_PROGRESS_LABELS} />
       </form>
@@ -341,7 +361,7 @@ export default function VoiceCloner() {
           />
           <a
             href={resultUrl}
-            download="cloned-voice.wav"
+            download={resultFilename ?? 'cloned-voice.wav'}
             className="download-button download-audio-btn"
           >
             下載音檔
