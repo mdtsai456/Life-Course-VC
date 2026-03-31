@@ -33,3 +33,8 @@ export async function cloneVoice(audioFile, text, signal) {
   formData.append('text', text ?? '')
   return postForBlob('/api/clone-voice', formData, '語音克隆失敗。', signal)
 }
+
+export async function checkHealth() {
+  const response = await fetch('/health')
+  return response.ok
+}
