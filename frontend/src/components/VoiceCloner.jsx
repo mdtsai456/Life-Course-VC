@@ -33,6 +33,12 @@ function formatTime(seconds) {
   return `${m}:${s}`
 }
 
+function cloneFilename() {
+  const d = new Date()
+  const pad = (n) => String(n).padStart(2, '0')
+  return `clone-${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}.wav`
+}
+
 function mapGetUserMediaError(err) {
   const name = err.name
   if (name === 'NotAllowedError' || name === 'PermissionDeniedError')
@@ -65,6 +71,7 @@ export default function VoiceCloner() {
   const [recordingSeconds, setRecordingSeconds] = useState(0)
   const [text, setText]                     = useState('')
   const [resultUrl, setResultUrl]           = useManagedObjectUrl()
+  const [resultFilename, setResultFilename] = useState(null)
   const [recordingMimeType, setRecordingMimeType] = useState('')
 
   const { execute, loading, error, setError, phase, reset } = useAsyncSubmit()
@@ -176,6 +183,7 @@ export default function VoiceCloner() {
     recorder.start()
 
     setResultUrl(null)
+    setResultFilename(null)
     setAudioBlob(null)
     chunksRef.current = []
     setIsRecording(true)
@@ -200,6 +208,7 @@ export default function VoiceCloner() {
     if (!audioBlob || !text.trim()) return
 
     setResultUrl(null)
+    setResultFilename(null)
 
     const ext = recordingMimeType ? mimeTypeToExtension(recordingMimeType) : 'audio'
     const audioFile = new File([audioBlob], `recording.${ext}`, { type: audioBlob.type })
@@ -207,7 +216,7 @@ export default function VoiceCloner() {
     execute(
       (signal) => cloneVoice(audioFile, text.trim(), signal),
       {
-        onSuccess: ({ url }) => setResultUrl(url),
+        onSuccess: ({ url }) => { setResultUrl(url); setResultFilename(cloneFilename()) },
         onAbortCleanup: revokeResultUrl,
       },
     )
@@ -350,7 +359,7 @@ export default function VoiceCloner() {
           />
           <a
             href={resultUrl}
-            download="cloned-voice.wav"
+            download={resultFilename ?? 'cloned-voice.wav'}
             className="download-button download-audio-btn"
           >
             下載音檔
