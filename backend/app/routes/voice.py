@@ -176,7 +176,7 @@ def _detect_language(text: str) -> str:
     if has_korean:
         return "ko"
     if has_cjk:
-        return "zh-cn"
+        return "zh-cn"  # XTTS v2 僅支援 "zh-cn" 作為中文語言代碼
     return "en"
 
 
@@ -293,13 +293,11 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
 
     language = _detect_language(stripped)
 
-    try:
-        async with request.app.state.xtts_admission_lock:
-            if request.app.state.xtts_semaphore.locked():
-                raise _job_http_exc(503, "語音克隆服務忙碌中，請稍後再試。", job_id)
-            await request.app.state.xtts_semaphore.acquire()
-    except HTTPException:
-        raise
+    async with request.app.state.xtts_admission_lock:
+        if request.app.state.xtts_semaphore.locked():
+            raise _job_http_exc(503, "語音克隆服務忙碌中，請稍後再試。", job_id)
+        await request.app.state.xtts_semaphore.acquire()
+
     try:
         async with request.app.state.xtts_lock:
             result_bytes = await anyio.to_thread.run_sync(

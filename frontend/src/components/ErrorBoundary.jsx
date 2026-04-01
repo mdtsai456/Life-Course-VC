@@ -22,12 +22,12 @@ export default class ErrorBoundary extends Component {
       return (
         <div className="error-boundary">
           <p className="error-message">
-            Something went wrong.{' '}
+            發生錯誤。{' '}
             <button
               onClick={() => window.location.reload()}
               className="link-button"
             >
-              Refresh the page
+              重新整理頁面
             </button>
           </p>
         </div>

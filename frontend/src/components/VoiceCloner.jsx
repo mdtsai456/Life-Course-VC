@@ -322,7 +322,7 @@ export default function VoiceCloner() {
         {/* Text input */}
         <div className="text-input-wrapper">
           <textarea
-            aria-label="Text to read aloud"
+            aria-label="要朗讀的文字"
             className="prompt-input"
             value={text}
             onChange={e => setText(e.target.value)}

@@ -1,9 +1,17 @@
+const NETWORK_ERROR_MESSAGE = '無法連線到伺服器，請檢查網路連線後重試。'
+
 async function postForBlob(url, formData, fallbackMessage, signal) {
-  const response = await fetch(url, {
-    method: 'POST',
-    body: formData,
-    signal,
-  })
+  let response
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      body: formData,
+      signal,
+    })
+  } catch (err) {
+    if (err.name === 'AbortError') throw err
+    throw new Error(NETWORK_ERROR_MESSAGE)
+  }
 
   if (!response.ok) {
     let message = fallbackMessage
@@ -20,7 +28,13 @@ async function postForBlob(url, formData, fallbackMessage, signal) {
     throw new Error(message)
   }
 
-  const blob = await response.blob()
+  let blob
+  try {
+    blob = await response.blob()
+  } catch (err) {
+    if (err.name === 'AbortError') throw err
+    throw new Error(NETWORK_ERROR_MESSAGE)
+  }
   if (blob.size === 0) {
     throw new Error('伺服器回應為空。')
   }
