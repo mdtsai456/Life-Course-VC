@@ -67,10 +67,10 @@ Strong success criteria let you loop independently. Weak criteria ("make it work
 Use `/grill-me` when:
 - The plan has unresolved open questions or ambiguous requirements
 
-Skip `/grill-me` and proceed to implementation when:
+Skip `/grill-me` when:
 - There are no unresolved open questions or ambiguous requirements
 
-When skipping, state the reason in one line before starting implementation.
+When skipping, state the reason in one line, then ask the user for confirmation before starting implementation.
 
 ---
 
