@@ -88,6 +88,9 @@ export default function VoiceCloner() {
 
   // Cleanup on unmount
   useEffect(() => {
+    // Strict Mode (dev) runs cleanup then setup again; without resetting, disposedRef
+    // would stay true and every getUserMedia success would bail before recording.
+    disposedRef.current = false
     return () => {
       disposedRef.current = true
       clearInterval(timerRef.current)
@@ -128,14 +131,17 @@ export default function VoiceCloner() {
       return
     }
 
-    if (disposedRef.current) {
-      stream.getTracks().forEach(t => t.stop())
-      return
-    }
+    try {
+      if (disposedRef.current) {
+        stream.getTracks().forEach(t => t.stop())
+        return
+      }
 
-    if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop())
-    streamRef.current = stream
-    setIsAcquiringMic(false)
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop())
+      streamRef.current = stream
+    } finally {
+      setIsAcquiringMic(false)
+    }
 
     const mimeType = getSupportedMimeType()
     let recorder
