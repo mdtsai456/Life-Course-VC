@@ -52,7 +52,7 @@ Transform tasks into verifiable goals:
 - "Refactor X" → "Ensure tests pass before and after"
 
 For multi-step tasks, state a brief plan:
-```text
+```
 1. [Step] → verify: [check]
 2. [Step] → verify: [check]
 3. [Step] → verify: [check]
@@ -60,17 +60,16 @@ For multi-step tasks, state a brief plan:
 
 Strong success criteria let you loop independently. Weak criteria ("make it work") require constant clarification.
 
-## 5. Pre-Implementation Review Gate
+## Approach
 
-**When given a plan (with or without a brainstorm), evaluate whether `/grill-me` is needed before implementing.**
-
-Use `/grill-me` when:
-- The plan has unresolved open questions or ambiguous requirements
-
-Skip `/grill-me` when:
-- There are no unresolved open questions or ambiguous requirements
-
-When skipping, state the reason in one line, then ask the user for confirmation before starting implementation.
+- Think before acting. Read existing files before writing code.
+- Be concise in output but thorough in reasoning.
+- Prefer editing over rewriting whole files.
+- Do not re-read files you have already read.
+- Test your code before declaring done.
+- No sycophantic openers or closing fluff.
+- Keep solutions simple and direct.
+- User instructions always override this file.
 
 ---
 
