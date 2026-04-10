@@ -5,8 +5,9 @@ import time
 from contextlib import asynccontextmanager
 
 os.environ["COQUI_TOS_AGREED"] = "1"  # must precede TTS import
-# Numba cannot pick a disk cache locator for code under site-packages (e.g. librosa); use a writable dir.
-os.environ.setdefault("NUMBA_CACHE_DIR", "/tmp/numba-cache")
+# Numba cannot pick a disk cache locator for code under site-packages (e.g. librosa);
+# use the container-managed writable cache dir (override via env when needed).
+os.environ.setdefault("NUMBA_CACHE_DIR", "/cache/numba-cache")
 
 import torch
 from TTS.api import TTS

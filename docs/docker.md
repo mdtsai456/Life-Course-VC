@@ -38,7 +38,7 @@ docker compose --profile dev-gpu logs -f backend-dev-gpu
 
 | Volume | 用途 |
 |--------|------|
-| `tts-cache` | 掛在容器內 `/cache`（`HOME`、`HF_HOME`、`TORCH_HOME`、`XDG_CACHE_HOME`）以持久化模型與下載快取 |
+| `tts-cache` | 掛在容器內 `/cache`（`HOME`、`HF_HOME`、`TORCH_HOME`、`XDG_CACHE_HOME`、`NUMBA_CACHE_DIR`）以持久化模型與下載快取 |
 | `job-storage` | 後端 `STORAGE_ROOT`（預設 `/app/storage`），對應 `backend/app/config.py` |
 | `frontend-node-modules` | 開發時將 `node_modules` 留在 volume，避免 bind 覆蓋 |
 
@@ -56,7 +56,7 @@ docker compose --profile dev-gpu logs -f backend-dev-gpu
 - /your/path/coqui-cache:/cache
 ```
 
-（請自行建立目錄並注意權限。）`HF_HOME`、`TORCH_HOME`、`XDG_CACHE_HOME` 已指向 `/cache` 底下子目錄，無須改環境變數即可一併持久化。
+（請自行建立目錄並注意權限。）`HF_HOME`、`TORCH_HOME`、`XDG_CACHE_HOME`、`NUMBA_CACHE_DIR` 已指向 `/cache` 底下子目錄，無須改環境變數即可一併持久化。
 
 ## 僅建映像（不啟動）
 

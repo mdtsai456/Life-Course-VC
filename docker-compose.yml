@@ -19,7 +19,7 @@ x-cache-env: &cache_env
   TORCH_HOME: /cache/torch
   XDG_CACHE_HOME: /cache/xdg
   # Numba JIT cache: site-packages modules (librosa) have no writable locator unless set explicitly.
-  NUMBA_CACHE_DIR: /tmp/numba-cache
+  NUMBA_CACHE_DIR: /cache/numba-cache
 
 volumes:
   tts-cache:
