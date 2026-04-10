@@ -1,11 +1,23 @@
-# Compose profiles (orthogonal: dev vs prod-like, and dev-cpu vs dev-gpu):
-#   docker compose --profile dev up              # CPU backend + Vite (bind mounts)
-#   docker compose --profile dev-gpu up          # GPU backend + Vite (needs NVIDIA Container Toolkit)
+# Compose profiles:
+#   - Development: choose ONE of `dev` (CPU) or `dev-gpu` (GPU) — 二選一. The CPU and GPU
+#     dev backends both map host port 8000; do not enable both profiles at once.
+#   - prod-like: separate stack (nginx + GPU backend images, no source bind).
+#
+#   docker compose --profile dev up              # backend-dev-cpu + Vite (bind mounts)
+#   docker compose --profile dev-gpu up          # backend-dev-gpu + Vite (needs NVIDIA Container Toolkit)
 #   docker compose --profile prod-like up        # nginx + GPU backend images (no source bind)
 #
 # See docs/docker.md for bind-mount cache paths and troubleshooting.
 
 name: life-course-vc
+
+x-cache-env: &cache_env
+  UVICORN_PORT: "8000"
+  STORAGE_ROOT: /app/storage
+  HOME: /cache/home
+  HF_HOME: /cache/huggingface
+  TORCH_HOME: /cache/torch
+  XDG_CACHE_HOME: /cache/xdg
 
 volumes:
   tts-cache:
@@ -13,6 +25,7 @@ volumes:
   frontend-node-modules:
 
 services:
+  # backend-dev-cpu / backend-dev-gpu: mutually exclusive dev backends (same host :8000).
   backend-dev-cpu:
     profiles: [dev]
     build:
@@ -22,12 +35,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      UVICORN_PORT: "8000"
-      STORAGE_ROOT: /app/storage
-      HOME: /cache/home
-      HF_HOME: /cache/huggingface
-      TORCH_HOME: /cache/torch
-      XDG_CACHE_HOME: /cache/xdg
+      <<: *cache_env
     volumes:
       - ./backend:/app
       - tts-cache:/cache
@@ -46,12 +54,7 @@ services:
     ports:
       - "8000:8000"
     environment:
-      UVICORN_PORT: "8000"
-      STORAGE_ROOT: /app/storage
-      HOME: /cache/home
-      HF_HOME: /cache/huggingface
-      TORCH_HOME: /cache/torch
-      XDG_CACHE_HOME: /cache/xdg
+      <<: *cache_env
     volumes:
       - ./backend:/app
       - tts-cache:/cache
@@ -88,12 +91,7 @@ services:
       dockerfile: Dockerfile
       target: runtime-gpu
     environment:
-      UVICORN_PORT: "8000"
-      STORAGE_ROOT: /app/storage
-      HOME: /cache/home
-      HF_HOME: /cache/huggingface
-      TORCH_HOME: /cache/torch
-      XDG_CACHE_HOME: /cache/xdg
+      <<: *cache_env
       CORS_ALLOWED_ORIGINS: http://localhost:8080
     volumes:
       - tts-cache:/cache
