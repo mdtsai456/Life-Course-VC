@@ -1,0 +1,117 @@
+# Compose profiles:
+#   - Development: choose ONE of `dev` (CPU) or `dev-gpu` (GPU) — 二選一. The CPU and GPU
+#     dev backends both map host port 8000; do not enable both profiles at once.
+#   - prod-like: separate stack (nginx + GPU backend images, no source bind).
+#
+#   docker compose --profile dev up              # backend-dev-cpu + Vite (bind mounts)
+#   docker compose --profile dev-gpu up          # backend-dev-gpu + Vite (needs NVIDIA Container Toolkit)
+#   docker compose --profile prod-like up        # nginx + GPU backend images (no source bind)
+#
+# See docs/docker.md for bind-mount cache paths and troubleshooting.
+
+name: life-course-vc
+
+x-cache-env: &cache_env
+  UVICORN_PORT: "8000"
+  STORAGE_ROOT: /app/storage
+  HOME: /cache/home
+  HF_HOME: /cache/huggingface
+  TORCH_HOME: /cache/torch
+  XDG_CACHE_HOME: /cache/xdg
+  # Numba JIT cache: site-packages modules (librosa) have no writable locator unless set explicitly.
+  NUMBA_CACHE_DIR: /cache/numba-cache
+
+volumes:
+  tts-cache:
+  job-storage:
+  frontend-node-modules:
+
+services:
+  # backend-dev-cpu / backend-dev-gpu: mutually exclusive dev backends (same host :8000).
+  backend-dev-cpu:
+    profiles: [dev]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime-cpu
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *cache_env
+    volumes:
+      - ./backend:/app
+      - tts-cache:/cache
+      - job-storage:/app/storage
+    networks:
+      default:
+        aliases:
+          - api
+
+  backend-dev-gpu:
+    profiles: [dev-gpu]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime-gpu
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *cache_env
+    volumes:
+      - ./backend:/app
+      - tts-cache:/cache
+      - job-storage:/app/storage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      default:
+        aliases:
+          - api
+
+  frontend-dev:
+    profiles: [dev, dev-gpu]
+    image: node:22-bookworm-slim
+    working_dir: /app
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_TARGET: http://api:8000
+    volumes:
+      - ./frontend:/app
+      - frontend-node-modules:/app/node_modules
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+
+  backend-prod:
+    profiles: [prod-like]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime-gpu
+    environment:
+      <<: *cache_env
+      CORS_ALLOWED_ORIGINS: http://localhost:8080
+    volumes:
+      - tts-cache:/cache
+      - job-storage:/app/storage
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  frontend-prod:
+    profiles: [prod-like]
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      - backend-prod
