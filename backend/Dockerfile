@@ -7,6 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system appuser && useradd --system --no-create-home --ingroup appuser appuser
+
 WORKDIR /app
 
 COPY requirements.txt .
@@ -15,6 +17,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 COPY app ./app
+
+RUN chown -R appuser:appuser /app /docker-entrypoint.sh
+USER appuser
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
@@ -26,6 +31,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
+RUN groupadd --system appuser && useradd --system --no-create-home --ingroup appuser appuser
+
 WORKDIR /app
 
 COPY requirements.txt .
@@ -35,5 +42,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
 COPY docker-entrypoint.sh /docker-entrypoint.sh
 RUN chmod +x /docker-entrypoint.sh
 COPY app ./app
+
+RUN chown -R appuser:appuser /app /docker-entrypoint.sh
+USER appuser
 
 ENTRYPOINT ["/docker-entrypoint.sh"]

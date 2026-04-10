@@ -8,4 +8,4 @@
 
 - CPU 開發：`docker compose --profile dev up --build`
 - GPU 開發：`docker compose --profile dev-gpu up --build`
-- 類上線（nginx + 後端映像、無原始碼 bind）：`docker compose --profile prod-like up --build`
+- 類上線（nginx + 後端映像、無原始碼 bind）：`docker compose --profile prod-like up --build`（需 NVIDIA 驅動與 NVIDIA Container Toolkit；無 GPU 請用 `--profile dev`）

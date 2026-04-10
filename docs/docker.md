@@ -16,7 +16,7 @@
 | 類上線：映像內建程式、無原始碼 bind | `docker compose --profile prod-like up --build` |
 
 - **dev / dev-gpu**：後端 `http://localhost:8000`，前端 Vite `http://localhost:5173`。前端透過 `VITE_API_TARGET=http://api:8000` 將 `/api`、`/health` 轉到後端（Compose 網路別名 `api`）。
-- **prod-like**：後端 `http://localhost:8000`，nginx 前端 `http://localhost:8080`；後端 CORS 預設為 `http://localhost:8080`。
+- **prod-like**：後端僅在 Compose 網路內對 `frontend-prod` 提供 `8000`（主機不對外綁定）；對外入口為 nginx `http://localhost:8080`；後端 CORS 預設為 `http://localhost:8080`。
 
 ## 驗證是否使用 GPU
 
