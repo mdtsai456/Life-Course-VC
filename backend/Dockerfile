@@ -7,7 +7,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --system appuser && useradd --system --no-create-home --ingroup appuser appuser
+# Home dir is created/chowned at runtime (see docker-entrypoint.sh); matches compose HOME=/cache/home.
+RUN groupadd --system appuser && useradd --system --no-create-home -g appuser -d /cache/home appuser
 
 WORKDIR /app
 
@@ -19,7 +20,7 @@ RUN chmod +x /docker-entrypoint.sh
 COPY app ./app
 
 RUN chown -R appuser:appuser /app /docker-entrypoint.sh
-USER appuser
+# Run as root so entrypoint can mkdir/chown volume mounts (/cache, /app/storage), then drop to appuser.
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
@@ -31,7 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
 
-RUN groupadd --system appuser && useradd --system --no-create-home --ingroup appuser appuser
+RUN groupadd --system appuser && useradd --system --no-create-home -g appuser -d /cache/home appuser
 
 WORKDIR /app
 
@@ -44,6 +45,6 @@ RUN chmod +x /docker-entrypoint.sh
 COPY app ./app
 
 RUN chown -R appuser:appuser /app /docker-entrypoint.sh
-USER appuser
+# Run as root so entrypoint can mkdir/chown volume mounts (/cache, /app/storage), then drop to appuser.
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
