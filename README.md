@@ -1,4 +1,4 @@
-# Life-Course-VC
+# Life Course: Voice-Cloning
 
 ## Docker
 
