@@ -1,18 +1,11 @@
-export default function ProgressStatus({ phase, labels }) {
+export default function ProgressStatus({ phase, labels, progress }) {
   if (!phase || !labels) return null
-
-  const valueMap = { uploading: 45, processing: 90, done: 100 }
-  const widthMap = { uploading: '45%', processing: '90%', done: '100%' }
-  const transitionMap = {
-    uploading: 'width 1s ease-out',
-    processing: 'width 4s ease-in-out',
-    done: 'width 0.3s',
-  }
 
   const label =
     phase === 'uploading' ? labels.uploading
     : phase === 'processing' ? labels.processing
     : null
+  const clampedProgress = Math.max(0, Math.min(100, Number.isFinite(progress) ? progress : 0))
 
   return (
     <div className="progress-status">
@@ -21,13 +14,13 @@ export default function ProgressStatus({ phase, labels }) {
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
-        aria-valuenow={valueMap[phase] ?? 0}
+        aria-valuenow={clampedProgress}
       >
         <div
           className="progress-bar-fill"
           style={{
-            width: widthMap[phase] ?? '0%',
-            transition: transitionMap[phase] ?? 'none',
+            width: `${clampedProgress}%`,
+            transition: 'width 0.3s ease',
           }}
         />
       </div>

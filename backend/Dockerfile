@@ -5,6 +5,7 @@ FROM pytorch/pytorch:2.6.0-cuda12.4-cudnn9-runtime AS runtime-gpu
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 # Home dir is created/chowned at runtime (see docker-entrypoint.sh); matches compose HOME=/cache/home.
@@ -30,6 +31,7 @@ FROM python:3.12-slim-bookworm AS runtime-cpu
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     libsndfile1 \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system appuser && useradd --system --no-create-home -g appuser -d /cache/home appuser

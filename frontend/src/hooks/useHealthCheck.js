@@ -1,14 +1,22 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { checkHealth } from '../services/api'
 
 const POLL_INTERVAL_MS = 3000
+const PERIODIC_RECHECK_MS = 5 * 60 * 1000
 
 export default function useHealthCheck() {
   const [serviceReady, setServiceReady] = useState(false)
+  const [pollToken, setPollToken] = useState(0)
+
+  const retrigger = useCallback(() => {
+    setServiceReady(false)
+    setPollToken(n => n + 1)
+  }, [])
 
   useEffect(() => {
-    let timerId = null
     let cancelled = false
+    let pollTimer = null
+    let periodicTimer = null
 
     async function poll() {
       try {
@@ -16,13 +24,18 @@ export default function useHealthCheck() {
         if (cancelled) return
         if (ok) {
           setServiceReady(true)
-          return // stop polling
+          periodicTimer = setTimeout(() => {
+            if (cancelled) return
+            setServiceReady(false)
+            setPollToken(n => n + 1)
+          }, PERIODIC_RECHECK_MS)
+          return
         }
       } catch {
         // network error — keep polling
       }
       if (!cancelled) {
-        timerId = setTimeout(poll, POLL_INTERVAL_MS)
+        pollTimer = setTimeout(poll, POLL_INTERVAL_MS)
       }
     }
 
@@ -30,9 +43,10 @@ export default function useHealthCheck() {
 
     return () => {
       cancelled = true
-      clearTimeout(timerId)
+      clearTimeout(pollTimer)
+      clearTimeout(periodicTimer)
     }
-  }, [])
+  }, [pollToken])
 
-  return serviceReady
+  return { serviceReady, retrigger }
 }

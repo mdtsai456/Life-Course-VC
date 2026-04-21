@@ -7,11 +7,15 @@ TTS are imported at module level in main.py.  We need to inject the mocks
 
 from __future__ import annotations
 
+import os
 import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
+
+# Disable rate limiting in tests by default; individual tests can opt in via env.
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 
 _APP_MODULES = [
@@ -19,6 +23,11 @@ _APP_MODULES = [
     "app.config",
     "app.storage_paths",
     "app.routes.voice",
+    "app.routes.jobs",
+    "app.rate_limit",
+    "app.cleanup",
+    "app.request_context",
+    "app.logging_config",
 ]
 
 

@@ -20,3 +20,9 @@ MIME_TO_FORMAT: dict[str, str] = {
     "audio/mp4": "mp4",
     "audio/ogg": "ogg",
 }
+
+# Languages supported by XTTS v2 (see Coqui XTTS docs).
+XTTS_SUPPORTED_LANGUAGES: frozenset[str] = frozenset({
+    "en", "es", "fr", "de", "it", "pt", "pl", "tr",
+    "ru", "nl", "cs", "ar", "zh-cn", "hu", "ko", "ja", "hi",
+})
