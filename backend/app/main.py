@@ -94,23 +94,16 @@ app = FastAPI(
 app.state.limiter = limiter
 
 
-def _get_retry_after_seconds(exc: RateLimitExceeded) -> int:
-    limit_item = getattr(getattr(exc, "limit", None), "limit", None)
-    if limit_item is None:
-        return 60
-    try:
-        return max(1, int(limit_item.get_expiry()))
-    except Exception:
-        return 60
-
-
 @app.exception_handler(RateLimitExceeded)
 async def rate_limit_exceeded_handler(request: Request, exc: RateLimitExceeded):
-    return JSONResponse(
+    response = JSONResponse(
         status_code=429,
         content={"detail": "請求過於頻繁，請稍後再試。"},
-        headers={"Retry-After": str(_get_retry_after_seconds(exc))},
     )
+    current_limit = getattr(request.state, "view_rate_limit", None)
+    if current_limit is not None:
+        response = request.app.state.limiter._inject_headers(response, current_limit)
+    return response
 
 
 app.add_middleware(

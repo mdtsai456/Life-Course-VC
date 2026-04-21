@@ -46,7 +46,7 @@ def _audio_path_and_stat_or_404(job_id: str):
 )
 async def get_job(job_id: str) -> dict:
     _validate_job_id(job_id)
-    audio_path, audio_stat = _audio_path_and_stat_or_404(job_id)
+    _audio_path, audio_stat = _audio_path_and_stat_or_404(job_id)
     return {
         "job_id": job_id,
         "status": "completed",

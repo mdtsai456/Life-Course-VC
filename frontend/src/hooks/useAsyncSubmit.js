@@ -20,19 +20,21 @@ export default function useAsyncSubmit() {
   const uploadTimerRef = useRef(null)
   const progressTimerRef = useRef(null)
 
-  const _clearProgressTimer = () => {
-    if (progressTimerRef.current) {
-      clearInterval(progressTimerRef.current)
-      progressTimerRef.current = null
+  const _clearProgressTimer = useCallback((timer = progressTimerRef.current) => {
+    if (timer) {
+      clearInterval(timer)
+      if (progressTimerRef.current === timer) {
+        progressTimerRef.current = null
+      }
     }
-  }
+  }, [])
 
   const abort = useCallback(() => {
     abortControllerRef.current?.abort()
     clearTimeout(phaseTimerRef.current)
     clearTimeout(uploadTimerRef.current)
     _clearProgressTimer()
-  }, [])
+  }, [_clearProgressTimer])
 
   const reset = useCallback(() => {
     abort()
@@ -46,11 +48,8 @@ export default function useAsyncSubmit() {
     abortControllerRef.current?.abort()
     clearTimeout(phaseTimerRef.current)
     clearTimeout(uploadTimerRef.current)
-    if (progressTimerRef.current) {
-      clearInterval(progressTimerRef.current)
-      progressTimerRef.current = null
-    }
-  }, [])
+    _clearProgressTimer()
+  }, [_clearProgressTimer])
 
   /**
    * Execute an async API call with full abort + phase management.
@@ -79,15 +78,16 @@ export default function useAsyncSubmit() {
     uploadTimerRef.current = localUploadTimer
 
     // Fake progress ramp: 0 → 95 over ~30s; stays at 95 until done/error.
-    progressTimerRef.current = setInterval(() => {
+    const localProgressTimer = setInterval(() => {
       if (localController.signal.aborted) return
       setProgress(p => (p < 95 ? p + 1 : p))
     }, 300)
+    progressTimerRef.current = localProgressTimer
 
     try {
       const result = await apiCall(localController.signal)
       clearTimeout(localUploadTimer)
-      _clearProgressTimer()
+      _clearProgressTimer(localProgressTimer)
       if (localController.signal.aborted) {
         onAbortCleanup?.(result)
         return
@@ -98,7 +98,7 @@ export default function useAsyncSubmit() {
       onSuccess?.(result)
     } catch (err) {
       clearTimeout(localUploadTimer)
-      _clearProgressTimer()
+      _clearProgressTimer(localProgressTimer)
       if (err.name === 'AbortError') return
       if (!localController.signal.aborted) {
         setPhase(null)
@@ -114,7 +114,7 @@ export default function useAsyncSubmit() {
         setLoading(false)
       }
     }
-  }, [])
+  }, [_clearProgressTimer])
 
   return { execute, loading, error, setError, phase, progress, abort, reset, abortControllerRef, phaseTimerRef }
 }

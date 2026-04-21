@@ -81,6 +81,45 @@ describe('useAsyncSubmit', () => {
     expect(secondCall).toHaveBeenCalledOnce()
   })
 
+  it('keeps the latest progress timer running when a prior execute aborts', async () => {
+    let resolveSecond
+    const firstCall = vi.fn((signal) => new Promise((_, reject) => {
+      signal.addEventListener('abort', () => {
+        reject(new DOMException('Aborted', 'AbortError'))
+      }, { once: true })
+    }))
+    const secondCall = vi.fn((signal) => new Promise((resolve, reject) => {
+      resolveSecond = resolve
+      signal.addEventListener('abort', () => {
+        reject(new DOMException('Aborted', 'AbortError'))
+      }, { once: true })
+    }))
+
+    const { result } = renderHook(() => useAsyncSubmit())
+
+    act(() => { void result.current.execute(firstCall) })
+
+    let secondPromise
+    act(() => {
+      secondPromise = result.current.execute(secondCall)
+    })
+
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    act(() => {
+      vi.advanceTimersByTime(900)
+    })
+
+    expect(result.current.progress).toBeGreaterThan(0)
+
+    await act(async () => {
+      resolveSecond({})
+      await secondPromise
+    })
+  })
+
   it('reset clears loading, phase, progress and error', async () => {
     const apiCall = vi.fn().mockRejectedValue(new Error('fail'))
     const { result } = renderHook(() => useAsyncSubmit())

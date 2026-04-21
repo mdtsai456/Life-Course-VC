@@ -34,10 +34,12 @@ def rate_limited_client(request):
     health_limit = params.get("health_limit")
     prior_enabled = os.environ.get("RATE_LIMIT_ENABLED")
     prior_limit = os.environ.get("RATE_LIMIT_CLONE")
-    prior_health_limit = os.environ.get("RATE_LIMIT_HEALTH")
+    prior_health = os.environ.get("RATE_LIMIT_HEALTH")
     os.environ["RATE_LIMIT_ENABLED"] = "true"
     os.environ["RATE_LIMIT_CLONE"] = clone_limit
-    if health_limit is not None:
+    if health_limit is None:
+        os.environ.pop("RATE_LIMIT_HEALTH", None)
+    else:
         os.environ["RATE_LIMIT_HEALTH"] = health_limit
 
     mock_torch = MagicMock(name="torch")
@@ -64,7 +66,7 @@ def rate_limited_client(request):
         for key, prior in (
             ("RATE_LIMIT_ENABLED", prior_enabled),
             ("RATE_LIMIT_CLONE", prior_limit),
-            ("RATE_LIMIT_HEALTH", prior_health_limit),
+            ("RATE_LIMIT_HEALTH", prior_health),
         ):
             if prior is None:
                 os.environ.pop(key, None)
