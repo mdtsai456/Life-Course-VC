@@ -365,18 +365,7 @@ export default function VoiceCloner() {
         >
           {!serviceReady ? '服務準備中…' : '送出'}
         </LoadingButton>
-        <ProgressStatus phase={phase} labels={CLONE_PROGRESS_LABELS} />
-        {loading && phase !== 'done' && (
-          <div
-            className="progress-bar"
-            role="progressbar"
-            aria-valuenow={progress}
-            aria-valuemin={0}
-            aria-valuemax={100}
-          >
-            <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
-          </div>
-        )}
+        <ProgressStatus phase={phase} labels={CLONE_PROGRESS_LABELS} progress={progress} />
       </form>
 
       {error && (
