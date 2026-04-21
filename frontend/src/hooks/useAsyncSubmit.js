@@ -7,38 +7,49 @@ import { useCallback, useRef, useState } from 'react'
  * Note: after abort(), `loading` remains true until `reset()` is called.
  * Components should call `reset()` in cleanup effects and on visibility changes.
  *
- * @returns {{ execute, loading, error, phase, abort, reset, abortControllerRef, phaseTimerRef }}
+ * @returns {{ execute, loading, error, phase, progress, abort, reset, abortControllerRef, phaseTimerRef }}
  */
 export default function useAsyncSubmit() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [phase, setPhase] = useState(null)
+  const [progress, setProgress] = useState(0)
 
   const abortControllerRef = useRef(null)
   const phaseTimerRef = useRef(null)
   const uploadTimerRef = useRef(null)
+  const progressTimerRef = useRef(null)
+
+  const _clearProgressTimer = () => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current)
+      progressTimerRef.current = null
+    }
+  }
 
   const abort = useCallback(() => {
     abortControllerRef.current?.abort()
     clearTimeout(phaseTimerRef.current)
     clearTimeout(uploadTimerRef.current)
+    _clearProgressTimer()
   }, [])
 
   const reset = useCallback(() => {
     abort()
     setLoading(false)
     setPhase(null)
+    setProgress(0)
     setError('')
   }, [abort])
 
   /**
    * Execute an async API call with full abort + phase management.
    *
-   * @param {(signal: AbortSignal) => Promise<any>} apiCall - The API function to call.
+   * @param {(signal: AbortSignal) => Promise<any>} apiCall
    * @param {object} [options]
-   * @param {(result: any) => void} [options.onSuccess] - Called with the result on success.
-   * @param {(err: Error) => void} [options.onError] - Called on non-abort errors. Defaults to setError(err.message).
-   * @param {(result: any) => void} [options.onAbortCleanup] - Called with the API result when result was obtained but signal was aborted.
+   * @param {(result: any) => void} [options.onSuccess]
+   * @param {(err: Error) => void} [options.onError]
+   * @param {(result: any) => void} [options.onAbortCleanup]
    */
   const execute = useCallback(async (apiCall, options = {}) => {
     const { onSuccess, onError, onAbortCleanup } = options
@@ -50,26 +61,38 @@ export default function useAsyncSubmit() {
     setError('')
     clearTimeout(phaseTimerRef.current)
     clearTimeout(uploadTimerRef.current)
+    _clearProgressTimer()
     setPhase('uploading')
+    setProgress(0)
 
     const localUploadTimer = setTimeout(() => setPhase('processing'), 800)
     uploadTimerRef.current = localUploadTimer
 
+    // Fake progress ramp: 0 → 95 over ~30s; stays at 95 until done/error.
+    progressTimerRef.current = setInterval(() => {
+      if (localController.signal.aborted) return
+      setProgress(p => (p < 95 ? p + 1 : p))
+    }, 300)
+
     try {
       const result = await apiCall(localController.signal)
       clearTimeout(localUploadTimer)
+      _clearProgressTimer()
       if (localController.signal.aborted) {
         onAbortCleanup?.(result)
         return
       }
       setPhase('done')
+      setProgress(100)
       phaseTimerRef.current = setTimeout(() => setPhase(null), 500)
       onSuccess?.(result)
     } catch (err) {
       clearTimeout(localUploadTimer)
+      _clearProgressTimer()
       if (err.name === 'AbortError') return
       if (!localController.signal.aborted) {
         setPhase(null)
+        setProgress(0)
         if (onError) {
           onError(err)
         } else {
@@ -83,5 +106,5 @@ export default function useAsyncSubmit() {
     }
   }, [])
 
-  return { execute, loading, error, setError, phase, abort, reset, abortControllerRef, phaseTimerRef }
+  return { execute, loading, error, setError, phase, progress, abort, reset, abortControllerRef, phaseTimerRef }
 }

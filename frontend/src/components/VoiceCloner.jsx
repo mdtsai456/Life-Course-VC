@@ -75,9 +75,10 @@ export default function VoiceCloner() {
   const [resultFilename, setResultFilename] = useState(null)
   const [recordingMimeType, setRecordingMimeType] = useState('')
 
-  const { execute, loading, error, setError, phase, reset } = useAsyncSubmit()
-  const serviceReady = useHealthCheck()
+  const { execute, loading, error, setError, phase, progress, reset } = useAsyncSubmit()
+  const { serviceReady, retrigger: retriggerHealth } = useHealthCheck()
   const previewUrl = useDerivedObjectUrl(audioBlob)
+  const [lastJobId, setLastJobId] = useState(null)
 
   // External resource refs (no re-render on change)
   const mediaRecorderRef = useRef(null)
@@ -217,6 +218,7 @@ export default function VoiceCloner() {
 
     setResultUrl(null)
     setResultFilename(null)
+    setLastJobId(null)
 
     const ext = recordingMimeType ? mimeTypeToExtension(recordingMimeType) : 'audio'
     const audioFile = new File([audioBlob], `recording.${ext}`, { type: audioBlob.type })
@@ -224,7 +226,19 @@ export default function VoiceCloner() {
     execute(
       (signal) => cloneVoice(audioFile, text.trim(), signal),
       {
-        onSuccess: ({ url }) => { setResultUrl(url); setResultFilename(cloneFilename()) },
+        onSuccess: ({ url, jobId }) => {
+          setResultUrl(url)
+          setResultFilename(cloneFilename())
+          if (jobId) setLastJobId(jobId)
+        },
+        onError: (err) => {
+          if (err?.jobId) setLastJobId(err.jobId)
+          setError(err.message || '發生錯誤，請重試。')
+          // Service-level failures → re-check backend health in the background.
+          if (err?.status === 503 || err?.message === '無法連線到伺服器，請檢查網路連線後重試。') {
+            retriggerHealth()
+          }
+        },
         onAbortCleanup: revokeResultUrl,
       },
     )
@@ -352,9 +366,19 @@ export default function VoiceCloner() {
           {!serviceReady ? '服務準備中…' : '送出'}
         </LoadingButton>
         <ProgressStatus phase={phase} labels={CLONE_PROGRESS_LABELS} />
+        {loading && phase !== 'done' && (
+          <div className="progress-bar" aria-hidden="true">
+            <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
+          </div>
+        )}
       </form>
 
-      {error && <p className="error-message">{error}</p>}
+      {error && (
+        <p className="error-message">
+          {error}
+          {lastJobId && <small className="job-id-hint"> (job id: {lastJobId})</small>}
+        </p>
+      )}
 
       {resultUrl && (
         <div className="audio-result">
