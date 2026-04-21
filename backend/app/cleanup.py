@@ -29,7 +29,8 @@ def _sweep_once(storage_root: Path, ttl_seconds: int) -> int:
             try:
                 if job_dir.stat().st_mtime < cutoff:
                     shutil.rmtree(job_dir, ignore_errors=True)
-                    removed += 1
+                    if not job_dir.exists():
+                        removed += 1
             except OSError:
                 logger.exception("cleanup failed for %s", job_dir)
     return removed

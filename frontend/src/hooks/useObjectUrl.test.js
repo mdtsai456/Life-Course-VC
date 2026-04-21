@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useDerivedObjectUrl, useManagedObjectUrl } from './useObjectUrl'
 
@@ -8,6 +8,7 @@ describe('useDerivedObjectUrl', () => {
     vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:derived-${++n}`)
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
   })
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('returns null when source is null', () => {
     const { result } = renderHook(({ src }) => useDerivedObjectUrl(src), {
@@ -48,6 +49,7 @@ describe('useManagedObjectUrl', () => {
   beforeEach(() => {
     vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => {})
   })
+  afterEach(() => { vi.restoreAllMocks() })
 
   it('revokes the previous URL when a new one is set', () => {
     const { result } = renderHook(() => useManagedObjectUrl())

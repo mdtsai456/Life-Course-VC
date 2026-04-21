@@ -16,7 +16,8 @@ name: life-course-vc
 
 x-cache-env: &cache_env
   UVICORN_PORT: "8000"
-  FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}"
+  # Override FORWARDED_ALLOW_IPS to add any legitimate proxy CIDRs.
+  FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-127.0.0.1,::1}"
   STORAGE_ROOT: /app/storage
   HOME: /cache/home
   HF_HOME: /cache/huggingface
@@ -106,7 +107,7 @@ services:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
     command: >
-      sh -c "cmp -s /app/package-lock.json /app/node_modules/.package-lock.json 2>/dev/null || npm ci;
+      sh -c "cmp -s /app/package-lock.json /app/node_modules/.package-lock.json 2>/dev/null || npm ci &&
              npm run dev -- --host 0.0.0.0 --port 5173"
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5173',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]

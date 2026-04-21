@@ -46,33 +46,30 @@ def rate_limited_client(request):
     patches = _make_standard_patches(mock_torch, mock_tts_api)
 
     saved = {m: sys.modules[m] for m in _APP_MODULES if m in sys.modules}
-
-    with patch.dict(sys.modules, patches):
+    try:
+        with patch.dict(sys.modules, patches):
+            _cleanup_modules()
+            from app.main import app
+            with TestClient(app) as c:
+                yield c
+            _cleanup_modules()
+    finally:
         _cleanup_modules()
-        from app.main import app
-        with TestClient(app) as c:
-            yield c
-        _cleanup_modules()
+        for mod, orig in saved.items():
+            sys.modules[mod] = orig
+            parts = mod.rsplit(".", 1)
+            if len(parts) == 2 and parts[0] in sys.modules:
+                setattr(sys.modules[parts[0]], parts[1], orig)
 
-    for mod, orig in saved.items():
-        sys.modules[mod] = orig
-        parts = mod.rsplit(".", 1)
-        if len(parts) == 2 and parts[0] in sys.modules:
-            setattr(sys.modules[parts[0]], parts[1], orig)
-
-    if prior_enabled is None:
-        os.environ["RATE_LIMIT_ENABLED"] = "false"
-    else:
-        os.environ["RATE_LIMIT_ENABLED"] = prior_enabled
-    if prior_limit is None:
-        os.environ.pop("RATE_LIMIT_CLONE", None)
-    else:
-        os.environ["RATE_LIMIT_CLONE"] = prior_limit
-    if health_limit is not None:
-        if prior_health_limit is None:
-            os.environ.pop("RATE_LIMIT_HEALTH", None)
-        else:
-            os.environ["RATE_LIMIT_HEALTH"] = prior_health_limit
+        for key, prior in (
+            ("RATE_LIMIT_ENABLED", prior_enabled),
+            ("RATE_LIMIT_CLONE", prior_limit),
+            ("RATE_LIMIT_HEALTH", prior_health_limit),
+        ):
+            if prior is None:
+                os.environ.pop(key, None)
+            else:
+                os.environ[key] = prior
 
 
 def _valid_audio_payload() -> bytes:

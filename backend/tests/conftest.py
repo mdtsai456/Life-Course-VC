@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 # Disable rate limiting in tests by default; individual tests can opt in via env.
-os.environ.setdefault("RATE_LIMIT_ENABLED", "false")
+os.environ["RATE_LIMIT_ENABLED"] = "false"
 
 
 _APP_MODULES = [

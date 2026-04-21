@@ -235,7 +235,7 @@ export default function VoiceCloner() {
           if (err?.jobId) setLastJobId(err.jobId)
           setError(err.message || '發生錯誤，請重試。')
           // Service-level failures → re-check backend health in the background.
-          if (err?.status === 503 || err?.message === '無法連線到伺服器，請檢查網路連線後重試。') {
+          if (err?.status === 503 || err?.code === 'NETWORK_ERROR') {
             retriggerHealth()
           }
         },
@@ -367,7 +367,13 @@ export default function VoiceCloner() {
         </LoadingButton>
         <ProgressStatus phase={phase} labels={CLONE_PROGRESS_LABELS} />
         {loading && phase !== 'done' && (
-          <div className="progress-bar" aria-hidden="true">
+          <div
+            className="progress-bar"
+            role="progressbar"
+            aria-valuenow={progress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
             <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
           </div>
         )}

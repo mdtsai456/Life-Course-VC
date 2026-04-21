@@ -7,7 +7,9 @@ describe('useAsyncSubmit', () => {
     vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
   })
   afterEach(() => {
-    vi.runOnlyPendingTimers()
+    act(() => {
+      vi.runOnlyPendingTimers()
+    })
     vi.useRealTimers()
   })
 
@@ -60,7 +62,11 @@ describe('useAsyncSubmit', () => {
     let firstSignal
     const firstCall = vi.fn((signal) => {
       firstSignal = signal
-      return new Promise(() => {})  // never resolves
+      return new Promise((_, reject) => {
+        signal.addEventListener('abort', () => {
+          reject(new DOMException('Aborted', 'AbortError'))
+        }, { once: true })
+      })
     })
     const secondCall = vi.fn().mockResolvedValue({ ok: true })
 

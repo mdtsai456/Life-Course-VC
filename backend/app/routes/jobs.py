@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import stat as stat_module
 import uuid
 from datetime import datetime, timezone
 
@@ -26,6 +27,17 @@ def _validate_job_id(job_id: str) -> None:
         raise HTTPException(status_code=404, detail="job not found") from None
 
 
+def _audio_path_and_stat_or_404(job_id: str):
+    audio_path = job_output_dir(get_storage_root(), job_id) / "cloned.wav"
+    try:
+        audio_stat = audio_path.stat()
+    except OSError:
+        raise HTTPException(status_code=404, detail="job not found") from None
+    if not stat_module.S_ISREG(audio_stat.st_mode):
+        raise HTTPException(status_code=404, detail="job not found")
+    return audio_path, audio_stat
+
+
 @router.get(
     "/api/jobs/{job_id}",
     summary="Get job metadata",
@@ -34,16 +46,13 @@ def _validate_job_id(job_id: str) -> None:
 )
 async def get_job(job_id: str) -> dict:
     _validate_job_id(job_id)
-    audio_path = job_output_dir(get_storage_root(), job_id) / "cloned.wav"
-    if not audio_path.is_file():
-        raise HTTPException(status_code=404, detail="job not found")
-    stat = audio_path.stat()
+    audio_path, audio_stat = _audio_path_and_stat_or_404(job_id)
     return {
         "job_id": job_id,
         "status": "completed",
         "audio_url": f"/api/jobs/{job_id}/audio",
-        "created_at": datetime.fromtimestamp(stat.st_mtime, tz=timezone.utc).isoformat(),
-        "size_bytes": stat.st_size,
+        "created_at": datetime.fromtimestamp(audio_stat.st_mtime, tz=timezone.utc).isoformat(),
+        "size_bytes": audio_stat.st_size,
     }
 
 
@@ -59,9 +68,7 @@ async def get_job(job_id: str) -> dict:
 )
 async def get_job_audio(job_id: str) -> FileResponse:
     _validate_job_id(job_id)
-    audio_path = job_output_dir(get_storage_root(), job_id) / "cloned.wav"
-    if not audio_path.is_file():
-        raise HTTPException(status_code=404, detail="job not found")
+    audio_path, _ = _audio_path_and_stat_or_404(job_id)
     return FileResponse(
         path=audio_path,
         media_type="audio/wav",

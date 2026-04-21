@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 
 /**
  * Custom hook encapsulating the shared async submit pattern:
@@ -41,6 +41,16 @@ export default function useAsyncSubmit() {
     setProgress(0)
     setError('')
   }, [abort])
+
+  useEffect(() => () => {
+    abortControllerRef.current?.abort()
+    clearTimeout(phaseTimerRef.current)
+    clearTimeout(uploadTimerRef.current)
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current)
+      progressTimerRef.current = null
+    }
+  }, [])
 
   /**
    * Execute an async API call with full abort + phase management.

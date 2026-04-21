@@ -13,12 +13,18 @@ function mockFetchResponse({ ok = true, status = 200, headers = {}, body = null,
 }
 
 describe('cloneVoice', () => {
+  let originalFetch
+
   beforeEach(() => {
+    originalFetch = globalThis.fetch
     globalThis.fetch = vi.fn()
     let n = 0
     vi.spyOn(URL, 'createObjectURL').mockImplementation(() => `blob:url-${++n}`)
   })
-  afterEach(() => { vi.restoreAllMocks() })
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
 
   it('returns url + jobId on success', async () => {
     const blob = new Blob(['payload'])
@@ -70,6 +76,7 @@ describe('cloneVoice', () => {
   it('throws network error message on fetch failure', async () => {
     globalThis.fetch.mockRejectedValue(new TypeError('Failed to fetch'))
     await expect(cloneVoice(new File(['x'], 'r'), 't')).rejects.toMatchObject({
+      code: 'NETWORK_ERROR',
       message: '無法連線到伺服器，請檢查網路連線後重試。',
     })
   })
@@ -92,8 +99,16 @@ describe('cloneVoice', () => {
 })
 
 describe('checkHealth', () => {
-  beforeEach(() => { globalThis.fetch = vi.fn() })
-  afterEach(() => { vi.restoreAllMocks() })
+  let originalFetch
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn()
+  })
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    vi.restoreAllMocks()
+  })
 
   it('returns true when response ok', async () => {
     globalThis.fetch.mockResolvedValue(mockFetchResponse({ ok: true }))

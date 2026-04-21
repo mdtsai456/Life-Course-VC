@@ -1,7 +1,9 @@
+const NETWORK_ERROR_CODE = 'NETWORK_ERROR'
 const NETWORK_ERROR_MESSAGE = '無法連線到伺服器，請檢查網路連線後重試。'
 
-function _makeError(message, { jobId = null, status = null } = {}) {
+function _makeError(message, { code = null, jobId = null, status = null } = {}) {
   const err = new Error(message)
+  if (code) err.code = code
   if (jobId) err.jobId = jobId
   if (status !== null) err.status = status
   return err
@@ -17,7 +19,7 @@ async function postForBlob(url, formData, fallbackMessage, signal) {
     })
   } catch (err) {
     if (err.name === 'AbortError') throw err
-    throw _makeError(NETWORK_ERROR_MESSAGE)
+    throw _makeError(NETWORK_ERROR_MESSAGE, { code: NETWORK_ERROR_CODE })
   }
 
   const jobId = response.headers.get('X-Job-Id')
@@ -42,7 +44,7 @@ async function postForBlob(url, formData, fallbackMessage, signal) {
     blob = await response.blob()
   } catch (err) {
     if (err.name === 'AbortError') throw err
-    throw _makeError(NETWORK_ERROR_MESSAGE, { jobId })
+    throw _makeError(NETWORK_ERROR_MESSAGE, { code: NETWORK_ERROR_CODE, jobId })
   }
   if (blob.size === 0) {
     throw _makeError('伺服器回應為空。', { jobId })

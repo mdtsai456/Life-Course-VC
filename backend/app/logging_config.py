@@ -2,12 +2,23 @@
 
 from __future__ import annotations
 
+import logging
 import logging.config
 import os
+import sys
 
 
 def configure_logging() -> None:
-    level = os.getenv("LOG_LEVEL", "INFO").upper()
+    raw_level = os.getenv("LOG_LEVEL", "INFO").strip().upper()
+    get_level_names_mapping = getattr(logging, "getLevelNamesMapping", None)
+    valid_levels = (
+        set(get_level_names_mapping())
+        if callable(get_level_names_mapping)
+        else set(logging._nameToLevel)
+    )
+    level = raw_level if raw_level in valid_levels else "INFO"
+    if raw_level != level:
+        print(f"Invalid LOG_LEVEL={raw_level!r}; falling back to INFO", file=sys.stderr)
 
     logging.config.dictConfig({
         "version": 1,

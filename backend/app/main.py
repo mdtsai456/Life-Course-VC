@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import re
 import time
 import uuid
 from contextlib import asynccontextmanager, suppress
@@ -38,6 +39,7 @@ from app.routes.jobs import router as jobs_router
 from app.routes.voice import router as voice_router
 
 logger = logging.getLogger(__name__)
+_REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,64}$")
 
 
 @asynccontextmanager
@@ -122,7 +124,8 @@ app.add_middleware(
 
 @app.middleware("http")
 async def request_id_middleware(request: Request, call_next):
-    rid = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+    incoming_request_id = request.headers.get("X-Request-ID", "")
+    rid = incoming_request_id if _REQUEST_ID_RE.fullmatch(incoming_request_id) else str(uuid.uuid4())
     token = request_id_var.set(rid)
     request.state.request_id = rid
     try:

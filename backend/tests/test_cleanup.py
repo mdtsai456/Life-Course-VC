@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from unittest.mock import patch
 
 from app.cleanup import _sweep_once, cleanup_expired_jobs
 
@@ -61,12 +62,24 @@ class TestSweepOnce:
         assert stray.exists()
         assert not stale.exists()
 
+    def test_only_counts_dirs_removed(self, tmp_path):
+        stale = _make_job_dir(tmp_path, "input", "stale", age_seconds=999)
+
+        with patch("app.cleanup.shutil.rmtree") as mock_rmtree:
+            removed = _sweep_once(tmp_path, 60)
+
+        assert removed == 0
+        assert stale.exists()
+        mock_rmtree.assert_called_once_with(stale, ignore_errors=True)
+
 
 class TestCleanupExpiredJobsAsync:
     def test_async_wrapper(self, tmp_path):
         """The async wrapper runs the sweep in a worker thread."""
         _make_job_dir(tmp_path, "output", "old", age_seconds=999)
-        removed = asyncio.new_event_loop().run_until_complete(
-            cleanup_expired_jobs(tmp_path, 60)
-        )
+        loop = asyncio.new_event_loop()
+        try:
+            removed = loop.run_until_complete(cleanup_expired_jobs(tmp_path, 60))
+        finally:
+            loop.close()
         assert removed == 1

@@ -46,11 +46,11 @@ def get_cleanup_interval_seconds() -> int:
 
 
 def get_clone_rate_limit() -> str:
-    return os.getenv("RATE_LIMIT_CLONE", "10/minute").strip()
+    return os.getenv("RATE_LIMIT_CLONE", "10/minute").strip() or "10/minute"
 
 
 def get_health_rate_limit() -> str:
-    return os.getenv("RATE_LIMIT_HEALTH", "60/minute").strip()
+    return os.getenv("RATE_LIMIT_HEALTH", "60/minute").strip() or "60/minute"
 
 
 def is_rate_limit_enabled() -> bool:
