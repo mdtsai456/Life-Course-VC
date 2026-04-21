@@ -233,7 +233,7 @@ export default function VoiceCloner() {
         },
         onError: (err) => {
           if (err?.jobId) setLastJobId(err.jobId)
-          setError(err.message || '發生錯誤，請重試。')
+          setError(err?.message || '發生錯誤，請重試。')
           // Service-level failures → re-check backend health in the background.
           if (err?.status === 503 || err?.code === 'NETWORK_ERROR') {
             retriggerHealth()
