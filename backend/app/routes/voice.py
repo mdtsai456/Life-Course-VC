@@ -22,8 +22,10 @@ from app.constants import (
     MAX_PCM_SIZE,
     MIME_TO_FORMAT,
     OGGS_MAGIC,
+    XTTS_SUPPORTED_LANGUAGES,
 )
-from app.config import get_storage_root
+from app.config import get_clone_rate_limit, get_storage_root, is_rate_limit_enabled
+from app.rate_limit import limiter
 from app.storage_paths import ensure_job_dirs
 from app.validation import read_and_validate_upload
 
@@ -35,6 +37,13 @@ except (ImportError, AttributeError):
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+def _clone_rate_limit_decorator(func):
+    """Apply slowapi rate limit only when enabled via env."""
+    if is_rate_limit_enabled():
+        return limiter.limit(get_clone_rate_limit())(func)
+    return func
 
 
 def _job_http_exc(status_code: int, detail: str, job_id: str) -> HTTPException:
@@ -234,10 +243,17 @@ def _run_xtts(tts, wav_bytes: bytes, text: str, language: str) -> bytes:
             "description": "Cloned voice audio (WAV)",
         },
         422: {"description": "Audio decode failure"},
+        429: {"description": "Rate limit exceeded"},
         503: {"description": "Audio conversion service unavailable"},
     },
 )
-async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = Form(None)) -> Response:
+@_clone_rate_limit_decorator
+async def clone_voice(
+    request: Request,
+    file: UploadFile,
+    text: Optional[str] = Form(None),
+    language: Optional[str] = Form(None),
+) -> Response:
     # MIME type is informational only; final validation uses magic bytes.
     mime = (file.content_type or "").split(";")[0].strip().lower()
     if mime not in MIME_TO_FORMAT:
@@ -251,6 +267,15 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
         raise _job_http_exc(400, "文字不得為空。", job_id)
     if len(stripped) > 500:
         raise _job_http_exc(400, "文字不得超過 500 個字元。", job_id)
+
+    # Validate optional language override
+    requested_language: str | None = None
+    if language is not None:
+        normalized = language.strip().lower()
+        if normalized != "":
+            if normalized not in XTTS_SUPPORTED_LANGUAGES:
+                raise _job_http_exc(400, f"不支援的語言代碼：{normalized}", job_id)
+            requested_language = normalized
 
     # Validate file size + magic bytes
     try:
@@ -291,7 +316,7 @@ async def clone_voice(request: Request, file: UploadFile, text: Optional[str] = 
     if tts_model is None:
         raise _job_http_exc(503, "語音克隆服務尚未就緒。", job_id)
 
-    language = _detect_language(stripped)
+    language = requested_language or _detect_language(stripped)
 
     async with request.app.state.xtts_admission_lock:
         if request.app.state.xtts_semaphore.locked():

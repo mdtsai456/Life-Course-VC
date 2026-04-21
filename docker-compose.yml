@@ -7,12 +7,16 @@
 #   docker compose --profile dev-gpu up          # backend-dev-gpu + Vite (needs NVIDIA Container Toolkit)
 #   docker compose --profile prod-like up        # nginx + GPU backend images (no source bind)
 #
+# Opt-in dev auto-reload (restarts uvicorn worker on .py changes; XTTS reloads each time):
+#   UVICORN_RELOAD=1 docker compose --profile dev up
+#
 # See docs/docker.md for bind-mount cache paths and troubleshooting.
 
 name: life-course-vc
 
 x-cache-env: &cache_env
   UVICORN_PORT: "8000"
+  FORWARDED_ALLOW_IPS: "${FORWARDED_ALLOW_IPS:-127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16}"
   STORAGE_ROOT: /app/storage
   HOME: /cache/home
   HF_HOME: /cache/huggingface
@@ -20,6 +24,13 @@ x-cache-env: &cache_env
   XDG_CACHE_HOME: /cache/xdg
   # Numba JIT cache: site-packages modules (librosa) have no writable locator unless set explicitly.
   NUMBA_CACHE_DIR: /cache/numba-cache
+
+x-backend-healthcheck: &backend_healthcheck
+  test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health',timeout=5).status==200 else 1)"]
+  interval: 30s
+  timeout: 10s
+  retries: 3
+  start_period: 300s
 
 volumes:
   tts-cache:
@@ -38,10 +49,15 @@ services:
       - "8000:8000"
     environment:
       <<: *cache_env
+      UVICORN_RELOAD: "${UVICORN_RELOAD:-0}"
     volumes:
       - ./backend:/app
       - tts-cache:/cache
       - job-storage:/app/storage
+    healthcheck: *backend_healthcheck
+    restart: on-failure:3
+    stop_grace_period: 90s
+    mem_limit: 12g
     networks:
       default:
         aliases:
@@ -57,6 +73,7 @@ services:
       - "8000:8000"
     environment:
       <<: *cache_env
+      UVICORN_RELOAD: "${UVICORN_RELOAD:-0}"
     volumes:
       - ./backend:/app
       - tts-cache:/cache
@@ -68,6 +85,10 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    healthcheck: *backend_healthcheck
+    restart: on-failure:3
+    stop_grace_period: 90s
+    mem_limit: 8g
     networks:
       default:
         aliases:
@@ -84,7 +105,16 @@ services:
     volumes:
       - ./frontend:/app
       - frontend-node-modules:/app/node_modules
-    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    command: >
+      sh -c "cmp -s /app/package-lock.json /app/node_modules/.package-lock.json 2>/dev/null || npm ci;
+             npm run dev -- --host 0.0.0.0 --port 5173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5173',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 120s
+    restart: on-failure:3
 
   backend-prod:
     profiles: [prod-like]
@@ -105,6 +135,11 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+    healthcheck: *backend_healthcheck
+    restart: unless-stopped
+    stop_grace_period: 90s
+    mem_limit: 8g
+    mem_reservation: 4g
 
   frontend-prod:
     profiles: [prod-like]
@@ -114,4 +149,12 @@ services:
     ports:
       - "8080:8080"
     depends_on:
-      - backend-prod
+      backend-prod:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO", "/dev/null", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped

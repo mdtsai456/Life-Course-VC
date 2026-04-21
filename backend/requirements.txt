@@ -4,6 +4,7 @@ python-multipart>=0.0.22
 httpx>=0.28.0
 pydub>=0.25.1
 anyio>=4.7.0
+slowapi>=0.1.9
 coqui-tts>=0.27.0
 # XTTS Chinese pipeline (TTS tokenizer raises "Chinese requires: pypinyin" without this).
 pypinyin>=0.50.0

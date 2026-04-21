@@ -21,7 +21,7 @@ class TestGetStorageRoot:
             import os
             os.environ.pop("STORAGE_ROOT", None)
             result = get_storage_root()
-        assert result == Path("./storage").resolve()
+        assert result == (Path(__file__).resolve().parents[1] / "storage").resolve()
 
 
 class TestJobInputDir:
